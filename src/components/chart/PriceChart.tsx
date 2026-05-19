@@ -51,6 +51,43 @@ interface Props {
   timeframe: Timeframe;
 }
 
+// Number of bars to show in the visible area when auto-fitting, per timeframe.
+// Smaller timeframes show fewer bars (they're denser), bigger ones show more.
+const VISIBLE_BARS: Record<string, number> = {
+  "1m": 120,
+  "5m": 150,
+  "15m": 200,
+  "1h": 200,
+  "4h": 200,
+  "1d": 300,
+  "1w": 200,
+};
+
+// Seconds per bar for each timeframe — used to extrapolate time in the empty area
+const TF_SECONDS: Record<string, number> = {
+  "1m": 60,
+  "5m": 300,
+  "15m": 900,
+  "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
+  "1w": 604800,
+};
+
+/** Format a unix-seconds timestamp for the crosshair label */
+function formatCrosshairTime(ts: number, tf: string): string {
+  const d = new Date(ts * 1000);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  const MM = pad(d.getUTCMonth() + 1);
+  const dd = pad(d.getUTCDate());
+  const hh = pad(d.getUTCHours());
+  const mm = pad(d.getUTCMinutes());
+  // For daily/weekly, omit time
+  if (tf === "1d" || tf === "1w") return `${yyyy}-${MM}-${dd}`;
+  return `${yyyy}-${MM}-${dd}  ${hh}:${mm}`;
+}
+
 const TV_COLORS = {
   bg: "#131722",
   panel: "#1e222d",
@@ -134,8 +171,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [paneOffsets, setPaneOffsets] = useState<PaneOffset[]>([]);
   const [measure, setMeasure] = useState<MeasureState>(INITIAL_MEASURE);
   const [renderTick, setRenderTick] = useState(0);
+  const [extraLabel, setExtraLabel] = useState<{ x: number; text: string } | null>(null);
   const measureRef = useRef(measure);
   measureRef.current = measure;
+  const timeframeRef = useRef(timeframe);
+  timeframeRef.current = timeframe;
 
   // Helper — compute pane top offsets from chart layout
   function recomputePaneOffsets() {
@@ -169,8 +209,20 @@ export function PriceChart({ symbol, timeframe }: Props) {
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: TV_COLORS.textMuted, width: 1, style: 3, labelBackgroundColor: TV_COLORS.panel },
-        horzLine: { color: TV_COLORS.textMuted, width: 1, style: 3, labelBackgroundColor: TV_COLORS.panel },
+        vertLine: {
+          color: TV_COLORS.textMuted,
+          width: 1,
+          style: 3,
+          labelVisible: true,
+          labelBackgroundColor: TV_COLORS.blue,
+        },
+        horzLine: {
+          color: TV_COLORS.textMuted,
+          width: 1,
+          style: 3,
+          labelVisible: true,
+          labelBackgroundColor: TV_COLORS.blue,
+        },
       },
       rightPriceScale: {
         borderColor: TV_COLORS.border,
@@ -274,26 +326,46 @@ export function PriceChart({ symbol, timeframe }: Props) {
         }
       }
 
-      if (!param.time || !candleSeriesRef.current) {
-        setHover(null);
+      // When cursor is over data, the built-in label handles it — clear custom label
+      if (param.time && candleSeriesRef.current) {
+        setExtraLabel(null);
+        const data = param.seriesData.get(candleSeriesRef.current);
+        const vol = volumeSeriesRef.current
+          ? param.seriesData.get(volumeSeriesRef.current)
+          : null;
+        if (data && "open" in data) {
+          const o = data.open as number;
+          const c = data.close as number;
+          setHover({
+            o,
+            h: data.high as number,
+            l: data.low as number,
+            c,
+            v: vol && "value" in vol ? (vol.value as number) : 0,
+            time: Number(param.time),
+            pct: o === 0 ? 0 : ((c - o) / o) * 100,
+          });
+        }
         return;
       }
-      const data = param.seriesData.get(candleSeriesRef.current);
-      const vol = volumeSeriesRef.current
-        ? param.seriesData.get(volumeSeriesRef.current)
-        : null;
-      if (data && "open" in data) {
-        const o = data.open as number;
-        const c = data.close as number;
-        setHover({
-          o,
-          h: data.high as number,
-          l: data.low as number,
-          c,
-          v: vol && "value" in vol ? (vol.value as number) : 0,
-          time: Number(param.time),
-          pct: o === 0 ? 0 : ((c - o) / o) * 100,
-        });
+
+      // Cursor is in the empty area past the last candle — extrapolate time
+      setHover(null);
+      if (param.point && chartRef.current && candlesRef.current.length > 0) {
+        const logical = chartRef.current.timeScale().coordinateToLogical(param.point.x);
+        if (logical !== null) {
+          const arr = candlesRef.current;
+          const lastIdx = arr.length - 1;
+          const lastTime = arr[lastIdx].time;
+          const secPerBar = TF_SECONDS[timeframeRef.current] ?? 60;
+          const extrapolatedTime = lastTime + Math.round(logical - lastIdx) * secPerBar;
+          const text = formatCrosshairTime(extrapolatedTime, timeframeRef.current);
+          setExtraLabel({ x: param.point.x, text });
+        } else {
+          setExtraLabel(null);
+        }
+      } else {
+        setExtraLabel(null);
       }
     });
 
@@ -657,7 +729,21 @@ export function PriceChart({ symbol, timeframe }: Props) {
         updateEMAs();
         updateRSI();
         updateMACD();
-        chartRef.current?.timeScale().fitContent();
+
+        // Smart auto-fit: show a tailored number of recent bars so the chart
+        // looks well-proportioned regardless of timeframe or symbol.
+        if (chartRef.current && klines.length > 0) {
+          const barsToShow = VISIBLE_BARS[timeframe] ?? 200;
+          const totalBars = klines.length;
+          const from = Math.max(totalBars - barsToShow, 0);
+          const to = totalBars - 1 + 12; // +12 right offset for live candles
+          chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
+
+          // Reset all price scales so they auto-fit vertically to the visible data
+          candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
+          rsiRef.current?.priceScale().applyOptions({ autoScale: true });
+          macdRef.current?.priceScale().applyOptions({ autoScale: true });
+        }
         requestAnimationFrame(() => recomputePaneOffsets());
 
         if (klines.length > 0) {
@@ -784,6 +870,25 @@ export function PriceChart({ symbol, timeframe }: Props) {
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       {measureRender}
+
+      {/* Custom extrapolated time label — shows when cursor is past last candle */}
+      {extraLabel && (
+        <div
+          className="pointer-events-none absolute z-20"
+          style={{
+            left: extraLabel.x,
+            bottom: 0,
+            transform: "translateX(-50%)",
+          }}
+        >
+          <div
+            className="whitespace-nowrap rounded-sm px-2 py-0.5 text-[11px] font-medium text-white"
+            style={{ backgroundColor: TV_COLORS.blue }}
+          >
+            {extraLabel.text}
+          </div>
+        </div>
+      )}
 
       {/* Top-left of main pane: symbol info + OHLC + Volume pill + EMA pills */}
       <div
