@@ -5,6 +5,7 @@ import {
   createChart,
   CandlestickSeries,
   LineSeries,
+  AreaSeries,
   HistogramSeries,
   CrosshairMode,
   type IChartApi,
@@ -14,7 +15,7 @@ import {
 } from "lightweight-charts";
 import { fetchKlines } from "@/lib/binance/rest";
 import { getBinanceWS } from "@/lib/binance/ws";
-import { ema, rsi, macd } from "@/lib/indicators";
+import { ema, rsi, macd, calculateSMA, calculateEMA } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
   INDICATOR_COLORS,
@@ -136,9 +137,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const ema20Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const ema50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const ema200Ref = useRef<ISeriesApi<"Line"> | null>(null);
-  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiRef = useRef<ISeriesApi<"Area"> | null>(null);
   const rsi30Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsi50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const rsi70Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiMaRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -396,7 +399,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       ema200Ref.current = null;
       rsiRef.current = null;
       rsi30Ref.current = null;
+      rsi50Ref.current = null;
       rsi70Ref.current = null;
+      rsiMaRef.current = null;
       macdRef.current = null;
       macdSignalRef.current = null;
       macdHistRef.current = null;
@@ -439,10 +444,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (indicators.rsi && !rsiRef.current) {
       const paneIndex = 1;
       const r = chartRef.current.addSeries(
-        LineSeries,
+        AreaSeries,
         {
-          color: INDICATOR_COLORS.rsi,
-          lineWidth: 1,
+          lineColor: "#7E57C2", // Color exacto del RSI de Pine Script v6
+          lineWidth: 1.5,
+          topColor: "rgba(126, 87, 194, 0.12)", // Relleno superior degradado sutil
+          bottomColor: "rgba(126, 87, 194, 0.0)", // Desvanecido a transparente
           priceLineVisible: false,
           lastValueVisible: false,
         },
@@ -452,6 +459,17 @@ export function PriceChart({ symbol, timeframe }: Props) {
         LineSeries,
         {
           color: TV_COLORS.textMuted,
+          lineWidth: 1,
+          lineStyle: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        },
+        paneIndex,
+      );
+      const r50 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: `${TV_COLORS.textMuted}80`, // 50% opacidad
           lineWidth: 1,
           lineStyle: 2,
           priceLineVisible: false,
@@ -470,9 +488,21 @@ export function PriceChart({ symbol, timeframe }: Props) {
         },
         paneIndex,
       );
+      const rma = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "#FFB74D", // Color amarillo/naranja premium
+          lineWidth: 1.5,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        },
+        paneIndex,
+      );
       rsiRef.current = r;
       rsi30Ref.current = r30;
+      rsi50Ref.current = r50;
       rsi70Ref.current = r70;
+      rsiMaRef.current = rma;
       try {
         chartRef.current.panes()[1]?.setStretchFactor(1);
         chartRef.current.panes()[0]?.setStretchFactor(3);
@@ -481,10 +511,14 @@ export function PriceChart({ symbol, timeframe }: Props) {
     } else if (!indicators.rsi && rsiRef.current && chartRef.current) {
       chartRef.current.removeSeries(rsiRef.current);
       if (rsi30Ref.current) chartRef.current.removeSeries(rsi30Ref.current);
+      if (rsi50Ref.current) chartRef.current.removeSeries(rsi50Ref.current);
       if (rsi70Ref.current) chartRef.current.removeSeries(rsi70Ref.current);
+      if (rsiMaRef.current) chartRef.current.removeSeries(rsiMaRef.current);
       rsiRef.current = null;
       rsi30Ref.current = null;
+      rsi50Ref.current = null;
       rsi70Ref.current = null;
+      rsiMaRef.current = null;
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -543,17 +577,20 @@ export function PriceChart({ symbol, timeframe }: Props) {
   // Visibility — eye toggle (hidden state) + enabled state combined
   useEffect(() => {
     const v = (key: IndicatorKey) => indicators[key] && !hidden[key];
+    const rsiMaType = config.rsiMaType ?? "SMA";
     ema20Ref.current?.applyOptions({ visible: v("ema20") });
     ema50Ref.current?.applyOptions({ visible: v("ema50") });
     ema200Ref.current?.applyOptions({ visible: v("ema200") });
     if (rsiRef.current) rsiRef.current.applyOptions({ visible: v("rsi") });
     if (rsi30Ref.current) rsi30Ref.current.applyOptions({ visible: v("rsi") });
+    if (rsi50Ref.current) rsi50Ref.current.applyOptions({ visible: v("rsi") });
     if (rsi70Ref.current) rsi70Ref.current.applyOptions({ visible: v("rsi") });
+    if (rsiMaRef.current) rsiMaRef.current.applyOptions({ visible: v("rsi") && rsiMaType !== "None" });
     if (macdRef.current) macdRef.current.applyOptions({ visible: v("macd") });
     if (macdSignalRef.current) macdSignalRef.current.applyOptions({ visible: v("macd") });
     if (macdHistRef.current) macdHistRef.current.applyOptions({ visible: v("macd") });
     if (volumeSeriesRef.current) volumeSeriesRef.current.applyOptions({ visible: v("volume") });
-  }, [indicators, hidden]);
+  }, [indicators, hidden, config.rsiMaType]);
 
   // Recompute indicators when config changes (periods)
   useEffect(() => {
@@ -562,7 +599,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
   useEffect(() => {
     updateRSI();
-  }, [config.rsi]);
+  }, [config.rsi, config.rsiMaLength, config.rsiMaType]);
 
   useEffect(() => {
     updateMACD();
@@ -661,11 +698,35 @@ export function PriceChart({ symbol, timeframe }: Props) {
         { time: data[0].time, value: 30 },
         { time: data[data.length - 1].time, value: 30 },
       ]);
+    if (rsi50Ref.current && data.length > 0)
+      rsi50Ref.current.setData([
+        { time: data[0].time, value: 50 },
+        { time: data[data.length - 1].time, value: 50 },
+      ]);
     if (rsi70Ref.current && data.length > 0)
       rsi70Ref.current.setData([
         { time: data[0].time, value: 70 },
         { time: data[data.length - 1].time, value: 70 },
       ]);
+
+    // Calcular MA de suavizado
+    const rsiMaType = cfg.rsiMaType ?? "SMA";
+    const rsiMaLength = cfg.rsiMaLength ?? 14;
+    let rsiMaData: { time: UTCTimestamp; value: number }[] = [];
+    if (rsiMaType !== "None" && data.length > 0) {
+      const maPoints = rsiMaType === "EMA"
+        ? calculateEMA(data, rsiMaLength)
+        : calculateSMA(data, rsiMaLength);
+      rsiMaData = maPoints.map((p) => ({
+        time: p.time as UTCTimestamp,
+        value: p.value,
+      }));
+    }
+    if (rsiMaRef.current) {
+      rsiMaRef.current.setData(rsiMaData);
+      rsiMaRef.current.applyOptions({ visible: rsiMaType !== "None" && !hidden.rsi });
+    }
+
     setLastValues((prev) => ({ ...prev, rsi: data.at(-1)?.value }));
   }
 

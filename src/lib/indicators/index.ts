@@ -115,3 +115,39 @@ export function macd(
   void slowStartTime;
   return out;
 }
+
+/**
+ * Calculate Simple Moving Average (SMA) on IndicatorPoint[] values (e.g. RSI results)
+ */
+export function calculateSMA(data: IndicatorPoint[], period: number): IndicatorPoint[] {
+  const out: IndicatorPoint[] = [];
+  if (data.length < period) return out;
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i].value;
+    if (i >= period) sum -= data[i - period].value;
+    if (i >= period - 1) {
+      out.push({ time: data[i].time, value: sum / period });
+    }
+  }
+  return out;
+}
+
+/**
+ * Calculate Exponential Moving Average (EMA) on IndicatorPoint[] values (e.g. RSI results)
+ */
+export function calculateEMA(data: IndicatorPoint[], period: number): IndicatorPoint[] {
+  const out: IndicatorPoint[] = [];
+  if (data.length < period) return out;
+  const k = 2 / (period + 1);
+  let prev = 0;
+  for (let i = 0; i < period; i++) prev += data[i].value;
+  prev /= period;
+  out.push({ time: data[period - 1].time, value: prev });
+  for (let i = period; i < data.length; i++) {
+    prev = data[i].value * k + prev * (1 - k);
+    out.push({ time: data[i].time, value: prev });
+  }
+  return out;
+}
+

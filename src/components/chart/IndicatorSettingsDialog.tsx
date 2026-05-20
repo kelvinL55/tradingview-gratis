@@ -78,6 +78,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     ema50: config.ema50,
     ema200: config.ema200,
     rsi: config.rsi,
+    rsiMaLength: config.rsiMaLength ?? 14,
+    rsiMaType: config.rsiMaType ?? "SMA",
     macdFast: config.macdFast,
     macdSlow: config.macdSlow,
     macdSignal: config.macdSignal,
@@ -89,6 +91,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       ema50: config.ema50,
       ema200: config.ema200,
       rsi: config.rsi,
+      rsiMaLength: config.rsiMaLength ?? 14,
+      rsiMaType: config.rsiMaType ?? "SMA",
       macdFast: config.macdFast,
       macdSlow: config.macdSlow,
       macdSignal: config.macdSignal,
@@ -99,7 +103,12 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     if (target === "ema20") onSave({ ema20: clamp(draft.ema20, 2, 500) });
     else if (target === "ema50") onSave({ ema50: clamp(draft.ema50, 2, 500) });
     else if (target === "ema200") onSave({ ema200: clamp(draft.ema200, 2, 500) });
-    else if (target === "rsi") onSave({ rsi: clamp(draft.rsi, 2, 100) });
+    else if (target === "rsi")
+      onSave({
+        rsi: clamp(draft.rsi, 2, 100),
+        rsiMaLength: clamp(draft.rsiMaLength, 2, 100),
+        rsiMaType: draft.rsiMaType,
+      });
     else if (target === "macd")
       onSave({
         macdFast: clamp(draft.macdFast, 2, 100),
@@ -119,11 +128,39 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         />
       )}
       {target === "rsi" && (
-        <Field
-          label="Período"
-          value={draft.rsi}
-          onChange={(n) => setDraft((d) => ({ ...d, rsi: n }))}
-        />
+        <div className="flex flex-col gap-3">
+          <Field
+            label="Período RSI"
+            value={draft.rsi}
+            onChange={(n) => setDraft((d) => ({ ...d, rsi: n }))}
+          />
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-tv-text-muted">
+              Tipo de MA de suavizado
+            </span>
+            <select
+              value={draft.rsiMaType}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  rsiMaType: e.target.value as "None" | "SMA" | "EMA",
+                }))
+              }
+              className="w-full rounded-md border border-tv-border bg-tv-bg px-3 py-2 text-xs text-tv-text focus:outline-none focus:ring-1 focus:ring-tv-blue"
+            >
+              <option value="None">Ninguno</option>
+              <option value="SMA">SMA (Simple)</option>
+              <option value="EMA">EMA (Exponencial)</option>
+            </select>
+          </div>
+          {draft.rsiMaType !== "None" && (
+            <Field
+              label="Longitud de MA"
+              value={draft.rsiMaLength}
+              onChange={(n) => setDraft((d) => ({ ...d, rsiMaLength: n }))}
+            />
+          )}
+        </div>
       )}
       {target === "macd" && (
         <div className="grid grid-cols-3 gap-2">
