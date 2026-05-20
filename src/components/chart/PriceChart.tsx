@@ -76,15 +76,17 @@ const TF_SECONDS: Record<string, number> = {
 };
 
 /** Format a unix-seconds timestamp for the crosshair label */
-function formatCrosshairTime(ts: number, tf: string): string {
+function formatCrosshairTime(ts: number, tf: string, timezone: "UTC" | "Local"): string {
   const d = new Date(ts * 1000);
   const pad = (n: number) => n.toString().padStart(2, "0");
-  const yyyy = d.getUTCFullYear();
-  const MM = pad(d.getUTCMonth() + 1);
-  const dd = pad(d.getUTCDate());
-  const hh = pad(d.getUTCHours());
-  const mm = pad(d.getUTCMinutes());
-  // For daily/weekly, omit time
+  
+  const isLocal = timezone === "Local";
+  const yyyy = isLocal ? d.getFullYear() : d.getUTCFullYear();
+  const MM = pad(isLocal ? (d.getMonth() + 1) : (d.getUTCMonth() + 1));
+  const dd = pad(isLocal ? d.getDate() : d.getUTCDate());
+  const hh = pad(isLocal ? d.getHours() : d.getUTCHours());
+  const mm = pad(isLocal ? d.getMinutes() : d.getUTCMinutes());
+  
   if (tf === "1d" || tf === "1w") return `${yyyy}-${MM}-${dd}`;
   return `${yyyy}-${MM}-${dd}  ${hh}:${mm}`;
 }
@@ -157,6 +159,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const removeIndicator = useChartStore((s) => s.removeIndicator);
   const toggleHidden = useChartStore((s) => s.toggleHidden);
   const setSettingsTarget = useChartStore((s) => s.setSettingsTarget);
+  const timezone = useChartStore((s) => s.timezone);
 
   // Refs to avoid recreating subscribeClick on every tool change
   const toolRef = useRef(tool);
@@ -179,6 +182,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   measureRef.current = measure;
   const timeframeRef = useRef(timeframe);
   timeframeRef.current = timeframe;
+  const timezoneRef = useRef(timezone);
+  timezoneRef.current = timezone;
 
   // Helper — compute pane top offsets from chart layout
   function recomputePaneOffsets() {
@@ -205,6 +210,19 @@ export function PriceChart({ symbol, timeframe }: Props) {
         fontFamily: "var(--font-sans), Inter, system-ui, sans-serif",
         fontSize: 11,
         panes: { separatorColor: TV_COLORS.border, separatorHoverColor: TV_COLORS.border },
+      },
+      localization: {
+        timeFormatter: (timestamp: number) => {
+          const d = new Date(timestamp * 1000);
+          const isLocal = timezoneRef.current === "Local";
+          const pad = (n: number) => n.toString().padStart(2, "0");
+          const yyyy = isLocal ? d.getFullYear() : d.getUTCFullYear();
+          const MM = pad(isLocal ? (d.getMonth() + 1) : (d.getUTCMonth() + 1));
+          const dd = pad(isLocal ? d.getDate() : d.getUTCDate());
+          const hh = pad(isLocal ? d.getHours() : d.getUTCHours());
+          const mm = pad(isLocal ? d.getMinutes() : d.getUTCMinutes());
+          return `${yyyy}-${MM}-${dd} ${hh}:${mm}`;
+        }
       },
       grid: {
         vertLines: { color: TV_COLORS.grid },
@@ -237,6 +255,19 @@ export function PriceChart({ symbol, timeframe }: Props) {
         secondsVisible: false,
         rightOffset: 12,
         barSpacing: 8,
+        tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
+          const d = new Date(time * 1000);
+          const isLocal = timezoneRef.current === "Local";
+          const pad = (n: number) => n.toString().padStart(2, "0");
+          const hh = pad(isLocal ? d.getHours() : d.getUTCHours());
+          const mm = pad(isLocal ? d.getMinutes() : d.getUTCMinutes());
+          const MM = pad(isLocal ? (d.getMonth() + 1) : (d.getUTCMonth() + 1));
+          const dd = pad(isLocal ? d.getDate() : d.getUTCDate());
+          if (tickMarkType === 2) {
+            return `${MM}-${dd}`;
+          }
+          return `${hh}:${mm}`;
+        }
       },
       autoSize: true,
     });
@@ -362,7 +393,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           const lastTime = arr[lastIdx].time;
           const secPerBar = TF_SECONDS[timeframeRef.current] ?? 60;
           const extrapolatedTime = lastTime + Math.round(logical - lastIdx) * secPerBar;
-          const text = formatCrosshairTime(extrapolatedTime, timeframeRef.current);
+          const text = formatCrosshairTime(extrapolatedTime, timeframeRef.current, timezoneRef.current);
           setExtraLabel({ x: param.point.x, text });
         } else {
           setExtraLabel(null);
@@ -447,7 +478,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         AreaSeries,
         {
           lineColor: "#7E57C2", // Color exacto del RSI de Pine Script v6
-          lineWidth: 1.5,
+          lineWidth: 1,
           topColor: "rgba(126, 87, 194, 0.12)", // Relleno superior degradado sutil
           bottomColor: "rgba(126, 87, 194, 0.0)", // Desvanecido a transparente
           priceLineVisible: false,
@@ -492,7 +523,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         LineSeries,
         {
           color: "#FFB74D", // Color amarillo/naranja premium
-          lineWidth: 1.5,
+          lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
         },
@@ -926,6 +957,41 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
   }
   void renderTick;
+
+  // Sync timezone change reactively on the chart options
+  useEffect(() => {
+    if (!chartRef.current) return;
+    chartRef.current.applyOptions({
+      localization: {
+        timeFormatter: (timestamp: number) => {
+          const d = new Date(timestamp * 1000);
+          const isLocal = timezone === "Local";
+          const pad = (n: number) => n.toString().padStart(2, "0");
+          const yyyy = isLocal ? d.getFullYear() : d.getUTCFullYear();
+          const MM = pad(isLocal ? (d.getMonth() + 1) : (d.getUTCMonth() + 1));
+          const dd = pad(isLocal ? d.getDate() : d.getUTCDate());
+          const hh = pad(isLocal ? d.getHours() : d.getUTCHours());
+          const mm = pad(isLocal ? d.getMinutes() : d.getUTCMinutes());
+          return `${yyyy}-${MM}-${dd} ${hh}:${mm}`;
+        }
+      },
+      timeScale: {
+        tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
+          const d = new Date(time * 1000);
+          const isLocal = timezone === "Local";
+          const pad = (n: number) => n.toString().padStart(2, "0");
+          const hh = pad(isLocal ? d.getHours() : d.getUTCHours());
+          const mm = pad(isLocal ? d.getMinutes() : d.getUTCMinutes());
+          const MM = pad(isLocal ? (d.getMonth() + 1) : (d.getUTCMonth() + 1));
+          const dd = pad(isLocal ? d.getDate() : d.getUTCDate());
+          if (tickMarkType === 2) {
+            return `${MM}-${dd}`;
+          }
+          return `${hh}:${mm}`;
+        }
+      }
+    });
+  }, [timezone]);
 
   return (
     <div className="relative h-full w-full">

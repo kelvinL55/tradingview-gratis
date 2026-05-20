@@ -76,6 +76,7 @@ interface ChartState {
   /** Periods and parameters for each indicator */
   config: IndicatorConfig;
   watchlist: string[];
+  timezone: "UTC" | "Local";
 
   // Ephemeral UI state (not persisted)
   tool: DrawingTool;
@@ -98,6 +99,7 @@ interface ChartState {
   clearPriceLines: (symbol?: string) => void;
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
+  setTimezone: (tz: "UTC" | "Local") => void;
 }
 
 export const useChartStore = create<ChartState>()(
@@ -123,6 +125,7 @@ export const useChartStore = create<ChartState>()(
       },
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
+      timezone: "UTC",
       tool: "cursor",
       priceLines: [],
       symbolDialogOpen: false,
@@ -180,6 +183,7 @@ export const useChartStore = create<ChartState>()(
         })),
       setSymbolDialogOpen: (symbolDialogOpen) => set({ symbolDialogOpen }),
       setSettingsTarget: (settingsTarget) => set({ settingsTarget }),
+      setTimezone: (timezone) => set({ timezone }),
     }),
     {
       name: "tv-gratis-chart-state",
@@ -190,6 +194,7 @@ export const useChartStore = create<ChartState>()(
         hidden: s.hidden,
         config: s.config,
         watchlist: s.watchlist,
+        timezone: s.timezone,
       }),
     },
   ),
