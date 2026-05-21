@@ -41,8 +41,8 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   rsi: 14,
   rsiMaLength: 14,
   rsiMaType: "SMA",
-  rsiColor: "#7e57c2",
-  rsiMaColor: "#ffb74d",
+  rsiColor: "#ffffff",
+  rsiMaColor: "#26c6da",
   macdFast: 12,
   macdSlow: 26,
   macdSignal: 9,
@@ -191,6 +191,20 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          if (persistedState && persistedState.config) {
+            if (persistedState.config.rsiColor === "#7e57c2") {
+              persistedState.config.rsiColor = "#ffffff";
+            }
+            if (persistedState.config.rsiMaColor === "#ffb74d") {
+              persistedState.config.rsiMaColor = "#26c6da";
+            }
+          }
+        }
+        return persistedState;
+      },
       partialize: (s) => ({
         symbol: s.symbol,
         timeframe: s.timeframe,
