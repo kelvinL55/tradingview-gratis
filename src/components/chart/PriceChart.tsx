@@ -139,6 +139,22 @@ interface PaneOffset {
   height: number;
 }
 
+function getPriceFormatForValue(price: number) {
+  if (price >= 1000) {
+    return { type: "price" as const, precision: 2, minMove: 0.01 };
+  } else if (price >= 1) {
+    return { type: "price" as const, precision: 2, minMove: 0.01 };
+  } else if (price >= 0.1) {
+    return { type: "price" as const, precision: 4, minMove: 0.0001 };
+  } else if (price >= 0.01) {
+    return { type: "price" as const, precision: 5, minMove: 0.00001 };
+  } else if (price >= 0.001) {
+    return { type: "price" as const, precision: 6, minMove: 0.000001 };
+  } else {
+    return { type: "price" as const, precision: 8, minMove: 0.00000001 };
+  }
+}
+
 export function PriceChart({ symbol, timeframe }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -828,6 +844,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
         if (cancelled) return;
         candlesRef.current = klines;
         if (candleSeriesRef.current) {
+          if (klines.length > 0) {
+            const lastCandle = klines[klines.length - 1];
+            const priceFormat = getPriceFormatForValue(lastCandle.close);
+            candleSeriesRef.current.applyOptions({ priceFormat });
+          }
           candleSeriesRef.current.setData(
             klines.map((k) => ({
               time: k.time as UTCTimestamp,
