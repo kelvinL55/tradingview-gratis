@@ -91,6 +91,14 @@ function formatCrosshairTime(ts: number, tf: string, timezone: "UTC" | "Local"):
   return `${yyyy}-${MM}-${dd}  ${hh}:${mm}`;
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const cleanHex = hex.replace("#", "");
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const TV_COLORS = {
   bg: "#131722",
   panel: "#1e222d",
@@ -474,13 +482,16 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (!chartRef.current) return;
     if (indicators.rsi && !rsiRef.current) {
       const paneIndex = 1;
+      const rColor = configRef.current.rsiColor ?? "#7e57c2";
+      const rMaColor = configRef.current.rsiMaColor ?? "#ffb74d";
+
       const r = chartRef.current.addSeries(
         AreaSeries,
         {
-          lineColor: "#7E57C2", // Color exacto del RSI de Pine Script v6
+          lineColor: rColor,
           lineWidth: 1,
-          topColor: "rgba(126, 87, 194, 0.12)", // Relleno superior degradado sutil
-          bottomColor: "rgba(126, 87, 194, 0.0)", // Desvanecido a transparente
+          topColor: hexToRgba(rColor, 0.12), // Relleno superior degradado sutil
+          bottomColor: hexToRgba(rColor, 0.0), // Desvanecido a transparente
           priceLineVisible: false,
           lastValueVisible: false,
         },
@@ -522,7 +533,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       const rma = chartRef.current.addSeries(
         LineSeries,
         {
-          color: "#FFB74D", // Color amarillo/naranja premium
+          color: rMaColor,
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
@@ -631,6 +642,24 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     updateRSI();
   }, [config.rsi, config.rsiMaLength, config.rsiMaType]);
+
+  // Sync colors reactively on the RSI and RSI-based MA series
+  useEffect(() => {
+    const rColor = config.rsiColor ?? "#7e57c2";
+    const rMaColor = config.rsiMaColor ?? "#ffb74d";
+    if (rsiRef.current) {
+      rsiRef.current.applyOptions({
+        lineColor: rColor,
+        topColor: hexToRgba(rColor, 0.12),
+        bottomColor: hexToRgba(rColor, 0.0),
+      });
+    }
+    if (rsiMaRef.current) {
+      rsiMaRef.current.applyOptions({
+        color: rMaColor,
+      });
+    }
+  }, [config.rsiColor, config.rsiMaColor]);
 
   useEffect(() => {
     updateMACD();

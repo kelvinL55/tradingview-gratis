@@ -27,6 +27,8 @@ export interface IndicatorConfig {
   rsi: number;
   rsiMaLength: number;
   rsiMaType: "None" | "SMA" | "EMA";
+  rsiColor: string;
+  rsiMaColor: string;
   macdFast: number;
   macdSlow: number;
   macdSignal: number;
@@ -39,6 +41,8 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   rsi: 14,
   rsiMaLength: 14,
   rsiMaType: "SMA",
+  rsiColor: "#7e57c2",
+  rsiMaColor: "#ffb74d",
   macdFast: 12,
   macdSlow: 26,
   macdSignal: 9,
