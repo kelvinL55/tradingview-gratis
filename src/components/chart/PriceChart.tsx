@@ -15,7 +15,7 @@ import {
 } from "lightweight-charts";
 import { fetchKlines } from "@/lib/binance/rest";
 import { getBinanceWS } from "@/lib/binance/ws";
-import { ema, rsi, macd, calculateSMA, calculateEMA } from "@/lib/indicators";
+import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
   INDICATOR_COLORS,
@@ -132,6 +132,9 @@ interface LastValues {
   macdSignal?: number;
   macdHist?: number;
   volume?: number;
+  adx?: number;
+  plusDI?: number;
+  minusDI?: number;
 }
 
 interface PaneOffset {
@@ -171,6 +174,10 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const macdRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const adxRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const plusDIRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const minusDIRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const adxKeyLevelRef = useRef<ISeriesApi<"Line"> | null>(null);
   const candlesRef = useRef<Candle[]>([]);
   const priceLinesMapRef = useRef<Map<string, IPriceLine>>(new Map());
 
@@ -460,6 +467,10 @@ export function PriceChart({ symbol, timeframe }: Props) {
       macdRef.current = null;
       macdSignalRef.current = null;
       macdHistRef.current = null;
+      adxRef.current = null;
+      plusDIRef.current = null;
+      minusDIRef.current = null;
+      adxKeyLevelRef.current = null;
     };
   }, []);
 
@@ -632,6 +643,84 @@ export function PriceChart({ symbol, timeframe }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators.macd, indicators.rsi]);
 
+  // ADX/DMI pane
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (indicators.adx && !adxRef.current) {
+      const paneIndex = 1 + (indicators.rsi ? 1 : 0) + (indicators.macd ? 1 : 0);
+      const aColor = configRef.current.adxColor ?? "#ef5350";
+      const pColor = configRef.current.plusDIColor ?? "#2196f3";
+      const mColor = configRef.current.minusDIColor ?? "#787b86";
+
+      const adxSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: aColor,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        },
+        paneIndex,
+      );
+
+      const plusDISeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: pColor,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        },
+        paneIndex,
+      );
+
+      const minusDISeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: mColor,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        },
+        paneIndex,
+      );
+
+      const adxKeyLevelSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: configRef.current.adxKeyLevelColor ?? "#ffffff",
+          lineWidth: 1,
+          lineStyle: 2, // Discontinua
+          priceLineVisible: false,
+          lastValueVisible: false,
+        },
+        paneIndex,
+      );
+
+      adxRef.current = adxSeries;
+      plusDIRef.current = plusDISeries;
+      minusDIRef.current = minusDISeries;
+      adxKeyLevelRef.current = adxKeyLevelSeries;
+
+      try {
+        chartRef.current.panes()[paneIndex]?.setStretchFactor(1);
+        chartRef.current.panes()[0]?.setStretchFactor(3);
+      } catch {}
+      updateADX();
+    } else if (!indicators.adx && adxRef.current && chartRef.current) {
+      chartRef.current.removeSeries(adxRef.current);
+      if (plusDIRef.current) chartRef.current.removeSeries(plusDIRef.current);
+      if (minusDIRef.current) chartRef.current.removeSeries(minusDIRef.current);
+      if (adxKeyLevelRef.current) chartRef.current.removeSeries(adxKeyLevelRef.current);
+      adxRef.current = null;
+      plusDIRef.current = null;
+      minusDIRef.current = null;
+      adxKeyLevelRef.current = null;
+    }
+    requestAnimationFrame(() => recomputePaneOffsets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.adx, indicators.rsi, indicators.macd]);
+
   // Visibility — eye toggle (hidden state) + enabled state combined
   useEffect(() => {
     const v = (key: IndicatorKey) => indicators[key] && !hidden[key];
@@ -647,6 +736,10 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (macdRef.current) macdRef.current.applyOptions({ visible: v("macd") });
     if (macdSignalRef.current) macdSignalRef.current.applyOptions({ visible: v("macd") });
     if (macdHistRef.current) macdHistRef.current.applyOptions({ visible: v("macd") });
+    if (adxRef.current) adxRef.current.applyOptions({ visible: v("adx") });
+    if (plusDIRef.current) plusDIRef.current.applyOptions({ visible: v("adx") });
+    if (minusDIRef.current) minusDIRef.current.applyOptions({ visible: v("adx") });
+    if (adxKeyLevelRef.current) adxKeyLevelRef.current.applyOptions({ visible: v("adx") });
     if (volumeSeriesRef.current) volumeSeriesRef.current.applyOptions({ visible: v("volume") });
   }, [indicators, hidden, config.rsiMaType]);
 
@@ -680,6 +773,30 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     updateMACD();
   }, [config.macdFast, config.macdSlow, config.macdSignal]);
+
+  useEffect(() => {
+    updateADX();
+  }, [config.adxLength, config.dmiLength, config.adxKeyLevel]);
+
+  useEffect(() => {
+    const aColor = config.adxColor ?? "#ef5350";
+    const pColor = config.plusDIColor ?? "#2196f3";
+    const mColor = config.minusDIColor ?? "#787b86";
+    const kColor = config.adxKeyLevelColor ?? "#ffffff";
+
+    if (adxRef.current) {
+      adxRef.current.applyOptions({ color: aColor });
+    }
+    if (plusDIRef.current) {
+      plusDIRef.current.applyOptions({ color: pColor });
+    }
+    if (minusDIRef.current) {
+      minusDIRef.current.applyOptions({ color: mColor });
+    }
+    if (adxKeyLevelRef.current) {
+      adxKeyLevelRef.current.applyOptions({ color: kColor });
+    }
+  }, [config.adxColor, config.plusDIColor, config.minusDIColor, config.adxKeyLevelColor]);
 
   // Sync price lines from store to the candle series
   useEffect(() => {
@@ -833,6 +950,39 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }));
   }
 
+  function updateADX() {
+    const c = candlesRef.current;
+    if (c.length === 0 || !adxRef.current) return;
+    const cfg = configRef.current;
+    const data = adxDmi(c, cfg.dmiLength, cfg.adxLength);
+    
+    if (data.length === 0) return;
+
+    adxRef.current.setData(
+      data.map((p) => ({ time: p.time as UTCTimestamp, value: p.adx }))
+    );
+    plusDIRef.current?.setData(
+      data.map((p) => ({ time: p.time as UTCTimestamp, value: p.plusDI }))
+    );
+    minusDIRef.current?.setData(
+      data.map((p) => ({ time: p.time as UTCTimestamp, value: p.minusDI }))
+    );
+    if (adxKeyLevelRef.current) {
+      adxKeyLevelRef.current.setData([
+        { time: data[0].time as UTCTimestamp, value: cfg.adxKeyLevel },
+        { time: data[data.length - 1].time as UTCTimestamp, value: cfg.adxKeyLevel },
+      ]);
+    }
+
+    const last = data.at(-1);
+    setLastValues((prev) => ({
+      ...prev,
+      adx: last?.adx,
+      plusDI: last?.plusDI,
+      minusDI: last?.minusDI,
+    }));
+  }
+
   // Load historical data + subscribe live
   useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -871,6 +1021,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         updateEMAs();
         updateRSI();
         updateMACD();
+        updateADX();
 
         // Smart auto-fit: show a tailored number of recent bars so the chart
         // looks well-proportioned regardless of timeframe or symbol.
@@ -885,6 +1036,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
           rsiRef.current?.priceScale().applyOptions({ autoScale: true });
           macdRef.current?.priceScale().applyOptions({ autoScale: true });
+          adxRef.current?.priceScale().applyOptions({ autoScale: true });
         }
         requestAnimationFrame(() => recomputePaneOffsets());
 
@@ -930,6 +1082,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             updateEMAs();
             updateRSI();
             updateMACD();
+            updateADX();
             const prev = arr[arr.length - 2] ?? lastCandle;
             setLastPrice({
               value: k.close,
@@ -961,6 +1114,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   // Determine which pane each indicator lives in (based on current layout)
   const rsiPaneIdx = 1;
   const macdPaneIdx = indicators.rsi ? 2 : 1;
+  const adxPaneIdx = 1 + (indicators.rsi ? 1 : 0) + (indicators.macd ? 1 : 0);
 
   let measureRender: React.ReactNode = null;
   if (
@@ -1208,6 +1362,28 @@ export function PriceChart({ symbol, timeframe }: Props) {
             onToggleHide={() => toggleHidden("macd")}
             onSettings={() => setSettingsTarget("macd")}
             onRemove={() => removeIndicator("macd")}
+          />
+        </div>
+      )}
+
+      {/* ADX pane label */}
+      {indicators.adx && paneOffsets[adxPaneIdx] && (
+        <div
+          style={{ top: paneOffsets[adxPaneIdx].top + 6, left: 12 }}
+          className="pointer-events-none absolute z-10"
+        >
+          <IndicatorPill
+            name={`DMI/ADX ${config.dmiLength}, ${config.adxLength}`}
+            value={
+              lastValues.adx !== undefined
+                ? `ADX ${lastValues.adx.toFixed(2)} | +DI ${lastValues.plusDI !== undefined ? lastValues.plusDI.toFixed(2) : ""} | -DI ${lastValues.minusDI !== undefined ? lastValues.minusDI.toFixed(2) : ""}`
+                : undefined
+            }
+            color={INDICATOR_COLORS.adx}
+            hidden={hidden.adx}
+            onToggleHide={() => toggleHidden("adx")}
+            onSettings={() => setSettingsTarget("adx")}
+            onRemove={() => removeIndicator("adx")}
           />
         </div>
       )}

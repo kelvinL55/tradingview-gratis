@@ -22,6 +22,7 @@ const TITLES: Record<IndicatorKey, string> = {
   rsi: "RSI",
   macd: "MACD",
   volume: "Volumen",
+  adx: "DMI / ADX / KEYLEVEL",
 };
 
 export function IndicatorSettingsDialog() {
@@ -87,6 +88,13 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     macdFast: config.macdFast,
     macdSlow: config.macdSlow,
     macdSignal: config.macdSignal,
+    adxLength: config.adxLength ?? 14,
+    dmiLength: config.dmiLength ?? 14,
+    adxKeyLevel: config.adxKeyLevel ?? 23,
+    adxColor: config.adxColor ?? "#ef5350",
+    plusDIColor: config.plusDIColor ?? "#2196f3",
+    minusDIColor: config.minusDIColor ?? "#787b86",
+    adxKeyLevelColor: config.adxKeyLevelColor ?? "#ffffff",
   });
 
   useEffect(() => {
@@ -102,6 +110,13 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       macdFast: config.macdFast,
       macdSlow: config.macdSlow,
       macdSignal: config.macdSignal,
+      adxLength: config.adxLength ?? 14,
+      dmiLength: config.dmiLength ?? 14,
+      adxKeyLevel: config.adxKeyLevel ?? 23,
+      adxColor: config.adxColor ?? "#ef5350",
+      plusDIColor: config.plusDIColor ?? "#2196f3",
+      minusDIColor: config.minusDIColor ?? "#787b86",
+      adxKeyLevelColor: config.adxKeyLevelColor ?? "#ffffff",
     });
     setActiveTab("inputs");
   }, [config, target]);
@@ -124,13 +139,23 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         macdSlow: clamp(draft.macdSlow, 2, 200),
         macdSignal: clamp(draft.macdSignal, 2, 100),
       });
+    else if (target === "adx")
+      onSave({
+        adxLength: clamp(draft.adxLength, 2, 100),
+        dmiLength: clamp(draft.dmiLength, 2, 100),
+        adxKeyLevel: clamp(draft.adxKeyLevel, 1, 100),
+        adxColor: draft.adxColor,
+        plusDIColor: draft.plusDIColor,
+        minusDIColor: draft.minusDIColor,
+        adxKeyLevelColor: draft.adxKeyLevelColor,
+      });
     else if (target === "volume") onSave({});
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {/* TradingView-like Tabs for RSI to divide Inputs vs Style */}
-      {target === "rsi" && (
+      {/* TradingView-like Tabs for RSI / ADX to divide Inputs vs Style */}
+      {(target === "rsi" || target === "adx") && (
         <div className="flex border-b border-tv-border -mx-6 px-6 mb-2 text-xs">
           <button
             onClick={() => setActiveTab("inputs")}
@@ -219,6 +244,25 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
               />
             </div>
           )}
+          {target === "adx" && (
+            <div className="flex flex-col gap-3">
+              <Field
+                label="Suavizado ADX (ADX Smoothing)"
+                value={draft.adxLength}
+                onChange={(n) => setDraft((d) => ({ ...d, adxLength: n }))}
+              />
+              <Field
+                label="Longitud DI (DI Length)"
+                value={draft.dmiLength}
+                onChange={(n) => setDraft((d) => ({ ...d, dmiLength: n }))}
+              />
+              <Field
+                label="Nivel clave ADX (Key Level)"
+                value={draft.adxKeyLevel}
+                onChange={(n) => setDraft((d) => ({ ...d, adxKeyLevel: n }))}
+              />
+            </div>
+          )}
           {target === "volume" && (
             <p className="text-xs text-tv-text-muted">
               El indicador de volumen no tiene parámetros configurables en esta
@@ -243,6 +287,31 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
               label="Promedio Móvil (RSI-based MA)"
             />
           )}
+        </div>
+      )}
+
+      {activeTab === "style" && target === "adx" && (
+        <div className="flex flex-col gap-4 py-2 border-b border-tv-border/20">
+          <ColorPicker
+            value={draft.adxColor}
+            onChange={(color) => setDraft((d) => ({ ...d, adxColor: color }))}
+            label="Línea ADX"
+          />
+          <ColorPicker
+            value={draft.plusDIColor}
+            onChange={(color) => setDraft((d) => ({ ...d, plusDIColor: color }))}
+            label="Línea +DI"
+          />
+          <ColorPicker
+            value={draft.minusDIColor}
+            onChange={(color) => setDraft((d) => ({ ...d, minusDIColor: color }))}
+            label="Línea -DI"
+          />
+          <ColorPicker
+            value={draft.adxKeyLevelColor}
+            onChange={(color) => setDraft((d) => ({ ...d, adxKeyLevelColor: color }))}
+            label="Línea Nivel Clave"
+          />
         </div>
       )}
 

@@ -10,7 +10,8 @@ export type IndicatorKey =
   | "ema200"
   | "rsi"
   | "macd"
-  | "volume";
+  | "volume"
+  | "adx";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -32,6 +33,13 @@ export interface IndicatorConfig {
   macdFast: number;
   macdSlow: number;
   macdSignal: number;
+  adxLength: number;
+  dmiLength: number;
+  adxKeyLevel: number;
+  adxColor: string;
+  plusDIColor: string;
+  minusDIColor: string;
+  adxKeyLevelColor: string;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
@@ -46,6 +54,13 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   macdFast: 12,
   macdSlow: 26,
   macdSignal: 9,
+  adxLength: 14,
+  dmiLength: 14,
+  adxKeyLevel: 23,
+  adxColor: "#ef5350",
+  plusDIColor: "#2196f3",
+  minusDIColor: "#787b86",
+  adxKeyLevelColor: "#ffffff",
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -55,6 +70,7 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   rsi: "#ab47bc",
   macd: "#2962ff",
   volume: "#787b86",
+  adx: "#ef5350",
 };
 
 export const DEFAULT_WATCHLIST = [
@@ -118,6 +134,7 @@ export const useChartStore = create<ChartState>()(
         rsi: true,
         macd: false,
         volume: true,
+        adx: false,
       },
       hidden: {
         ema20: false,
@@ -126,6 +143,7 @@ export const useChartStore = create<ChartState>()(
         rsi: false,
         macd: false,
         volume: false,
+        adx: false,
       },
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
@@ -191,19 +209,42 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 1,
+      version: 2,
       migrate: (persistedState: any, version: number) => {
-        if (version === 0) {
-          if (persistedState && persistedState.config) {
-            if (persistedState.config.rsiColor === "#7e57c2") {
-              persistedState.config.rsiColor = "#ffffff";
+        let state = persistedState;
+        if (version < 1) {
+          if (state && state.config) {
+            if (state.config.rsiColor === "#7e57c2") {
+              state.config.rsiColor = "#ffffff";
             }
-            if (persistedState.config.rsiMaColor === "#ffb74d") {
-              persistedState.config.rsiMaColor = "#26c6da";
+            if (state.config.rsiMaColor === "#ffb74d") {
+              state.config.rsiMaColor = "#26c6da";
             }
           }
         }
-        return persistedState;
+        if (version < 2) {
+          if (state) {
+            if (state.indicators && state.indicators.adx === undefined) {
+              state.indicators = { ...state.indicators, adx: false };
+            }
+            if (state.hidden && state.hidden.adx === undefined) {
+              state.hidden = { ...state.hidden, adx: false };
+            }
+            if (state.config) {
+              state.config = {
+                ...state.config,
+                adxLength: 14,
+                dmiLength: 14,
+                adxKeyLevel: 23,
+                adxColor: "#ef5350",
+                plusDIColor: "#2196f3",
+                minusDIColor: "#787b86",
+                adxKeyLevelColor: "#ffffff",
+              };
+            }
+          }
+        }
+        return state;
       },
       partialize: (s) => ({
         symbol: s.symbol,

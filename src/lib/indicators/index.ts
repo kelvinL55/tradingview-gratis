@@ -151,3 +151,101 @@ export function calculateEMA(data: IndicatorPoint[], period: number): IndicatorP
   return out;
 }
 
+export interface ADXPoint {
+  time: number;
+  adx: number;
+  plusDI: number;
+  minusDI: number;
+}
+
+export function adxDmi(
+  candles: Candle[],
+  dilen = 14,
+  adxlen = 14,
+): ADXPoint[] {
+  if (candles.length < dilen + adxlen) return [];
+
+  const n = candles.length;
+  const tr: number[] = [];
+  const plusDM: number[] = [];
+  const minusDM: number[] = [];
+  const times: number[] = [];
+
+  for (let i = 1; i < n; i++) {
+    const highDiff = candles[i].high - candles[i - 1].high;
+    const lowDiff = candles[i - 1].low - candles[i].low;
+    
+    const trVal = Math.max(
+      candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - candles[i - 1].close),
+      Math.abs(candles[i].low - candles[i - 1].close)
+    );
+    tr.push(trVal);
+
+    const pDM = (highDiff > lowDiff && highDiff > 0) ? highDiff : 0;
+    const mDM = (lowDiff > highDiff && lowDiff > 0) ? lowDiff : 0;
+    plusDM.push(pDM);
+    minusDM.push(mDM);
+    times.push(candles[i].time);
+  }
+
+  const rmaTR = rmaNumbers(tr, dilen);
+  const rmaPlusDM = rmaNumbers(plusDM, dilen);
+  const rmaMinusDM = rmaNumbers(minusDM, dilen);
+
+  const dxValues: number[] = [];
+  const plusDIValues: number[] = [];
+  const minusDIValues: number[] = [];
+  const rmaTimes: number[] = [];
+
+  for (let j = 0; j < rmaTR.length; j++) {
+    const trVal = rmaTR[j];
+    const pDM = rmaPlusDM[j];
+    const mDM = rmaMinusDM[j];
+
+    const plusDI = trVal === 0 ? 0 : (100 * pDM) / trVal;
+    const minusDI = trVal === 0 ? 0 : (100 * mDM) / trVal;
+
+    plusDIValues.push(plusDI);
+    minusDIValues.push(minusDI);
+
+    const sum = plusDI + minusDI;
+    const dx = 100 * Math.abs(plusDI - minusDI) / (sum === 0 ? 1 : sum);
+    dxValues.push(dx);
+    rmaTimes.push(times[j + dilen - 1]);
+  }
+
+  const adxValues = rmaNumbers(dxValues, adxlen);
+
+  const out: ADXPoint[] = [];
+  for (let k = 0; k < adxValues.length; k++) {
+    const idx = k + adxlen - 1;
+    out.push({
+      time: rmaTimes[idx],
+      adx: adxValues[k],
+      plusDI: plusDIValues[idx],
+      minusDI: minusDIValues[idx],
+    });
+  }
+
+  return out;
+}
+
+function rmaNumbers(values: number[], period: number): number[] {
+  const out: number[] = [];
+  if (values.length < period) return out;
+  
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += values[i];
+  }
+  let prev = sum / period;
+  out.push(prev);
+  
+  for (let i = period; i < values.length; i++) {
+    prev = (values[i] + prev * (period - 1)) / period;
+    out.push(prev);
+  }
+  return out;
+}
+
