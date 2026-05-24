@@ -4,6 +4,7 @@ import { Code2, Zap } from "lucide-react";
 import { SymbolSelector } from "@/components/chart/SymbolSelector";
 import { TimeframeSelector } from "@/components/chart/TimeframeSelector";
 import { IndicatorMenu } from "@/components/chart/IndicatorMenu";
+import { ProfileSelector } from "@/components/chart/ProfileSelector";
 import { Separator } from "@/components/ui/separator";
 
 export function Header() {
@@ -24,6 +25,8 @@ export function Header() {
         <TimeframeSelector />
         <Separator orientation="vertical" className="mx-1 h-6 bg-tv-border" />
         <IndicatorMenu />
+        <Separator orientation="vertical" className="mx-1 h-6 bg-tv-border" />
+        <ProfileSelector />
       </div>
 
       <div className="flex items-center gap-2">

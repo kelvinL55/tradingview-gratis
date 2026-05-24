@@ -1,6 +1,5 @@
 "use client";
-
-import { Eye, EyeOff, Settings, X } from "lucide-react";
+import { Eye, EyeOff, Settings, X, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -11,6 +10,8 @@ interface Props {
   onToggleHide: () => void;
   onSettings: () => void;
   onRemove: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }
 
 export function IndicatorPill({
@@ -21,6 +22,8 @@ export function IndicatorPill({
   onToggleHide,
   onSettings,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: Props) {
   return (
     <div
@@ -38,6 +41,26 @@ export function IndicatorPill({
         <span className="tabular-nums text-tv-text-muted">{value}</span>
       )}
       <div className="ml-1 flex items-center gap-0.5">
+        {onMoveUp && (
+          <button
+            onClick={onMoveUp}
+            title="Subir panel (sobreponer)"
+            aria-label="Subir panel"
+            className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {onMoveDown && (
+          <button
+            onClick={onMoveDown}
+            title="Bajar panel"
+            aria-label="Bajar panel"
+            className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           onClick={onToggleHide}
           title={hidden ? "Mostrar" : "Ocultar"}

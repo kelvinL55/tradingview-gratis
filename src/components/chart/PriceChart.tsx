@@ -191,6 +191,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const toggleHidden = useChartStore((s) => s.toggleHidden);
   const setSettingsTarget = useChartStore((s) => s.setSettingsTarget);
   const timezone = useChartStore((s) => s.timezone);
+  const indicatorPanes = useChartStore((s) => s.indicatorPanes);
+  const moveIndicatorPane = useChartStore((s) => s.moveIndicatorPane);
 
   // Refs to avoid recreating subscribeClick on every tool change
   const toolRef = useRef(tool);
@@ -209,6 +211,41 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [measure, setMeasure] = useState<MeasureState>(INITIAL_MEASURE);
   const [renderTick, setRenderTick] = useState(0);
   const [extraLabel, setExtraLabel] = useState<{ x: number; text: string } | null>(null);
+
+  // Dynamic pane calculations
+  const activePaneIds = new Set<string>();
+  activePaneIds.add("main");
+  if (indicators.rsi) activePaneIds.add(indicatorPanes.rsi);
+  if (indicators.macd) activePaneIds.add(indicatorPanes.macd);
+  if (indicators.adx) activePaneIds.add(indicatorPanes.adx);
+
+  const PANE_ORDER = ["main", "rsi", "macd", "adx"];
+  const visiblePanes = PANE_ORDER.filter((id) => activePaneIds.has(id));
+
+  const getPaneIndex = (paneId: string) => {
+    const idx = visiblePanes.indexOf(paneId);
+    return idx === -1 ? 0 : idx;
+  };
+
+  const rsiPaneIdx = getPaneIndex(indicatorPanes.rsi);
+  const macdPaneIdx = getPaneIndex(indicatorPanes.macd);
+  const adxPaneIdx = getPaneIndex(indicatorPanes.adx);
+
+  const rsiScaleId = indicatorPanes.rsi === "rsi" ? "right" : "left";
+  const macdScaleId = indicatorPanes.macd === "macd" ? "right" : "left";
+  const adxScaleId = indicatorPanes.adx === "adx" ? "right" : "left";
+
+  const handleMovePane = (key: "rsi" | "macd" | "adx", direction: "up" | "down") => {
+    const currentPane = indicatorPanes[key];
+    const idx = PANE_ORDER.indexOf(currentPane);
+    if (idx === -1) return;
+
+    if (direction === "up" && idx > 0) {
+      moveIndicatorPane(key, PANE_ORDER[idx - 1]);
+    } else if (direction === "down" && idx < PANE_ORDER.length - 1) {
+      moveIndicatorPane(key, PANE_ORDER[idx + 1]);
+    }
+  };
   const measureRef = useRef(measure);
   measureRef.current = measure;
   const timeframeRef = useRef(timeframe);
@@ -279,6 +316,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
       rightPriceScale: {
         borderColor: TV_COLORS.border,
         textColor: TV_COLORS.textMuted,
+      },
+      leftPriceScale: {
+        borderColor: TV_COLORS.border,
+        textColor: TV_COLORS.textMuted,
+        visible: true,
       },
       timeScale: {
         borderColor: TV_COLORS.border,
@@ -508,7 +550,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     if (!chartRef.current) return;
     if (indicators.rsi && !rsiRef.current) {
-      const paneIndex = 1;
       const rColor = configRef.current.rsiColor ?? "#7e57c2";
       const rMaColor = configRef.current.rsiMaColor ?? "#ffb74d";
 
@@ -521,8 +562,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           bottomColor: hexToRgba(rColor, 0.0), // Desvanecido a transparente
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: rsiScaleId,
         },
-        paneIndex,
+        rsiPaneIdx,
       );
       const r30 = chartRef.current.addSeries(
         LineSeries,
@@ -532,8 +574,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineStyle: 2,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: rsiScaleId,
         },
-        paneIndex,
+        rsiPaneIdx,
       );
       const r50 = chartRef.current.addSeries(
         LineSeries,
@@ -543,8 +586,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineStyle: 2,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: rsiScaleId,
         },
-        paneIndex,
+        rsiPaneIdx,
       );
       const r70 = chartRef.current.addSeries(
         LineSeries,
@@ -554,8 +598,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineStyle: 2,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: rsiScaleId,
         },
-        paneIndex,
+        rsiPaneIdx,
       );
       const rma = chartRef.current.addSeries(
         LineSeries,
@@ -564,8 +609,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: rsiScaleId,
         },
-        paneIndex,
+        rsiPaneIdx,
       );
       rsiRef.current = r;
       rsi30Ref.current = r30;
@@ -573,7 +619,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       rsi70Ref.current = r70;
       rsiMaRef.current = rma;
       try {
-        chartRef.current.panes()[1]?.setStretchFactor(1);
+        if (rsiPaneIdx > 0) {
+          chartRef.current.panes()[rsiPaneIdx]?.setStretchFactor(1);
+        }
         chartRef.current.panes()[0]?.setStretchFactor(3);
       } catch {}
       updateRSI();
@@ -591,13 +639,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.rsi]);
+  }, [indicators.rsi, rsiPaneIdx, rsiScaleId]);
 
   // MACD pane
   useEffect(() => {
     if (!chartRef.current) return;
     if (indicators.macd && !macdRef.current) {
-      const paneIndex = indicators.rsi ? 2 : 1;
       const m = chartRef.current.addSeries(
         LineSeries,
         {
@@ -605,8 +652,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: macdScaleId,
         },
-        paneIndex,
+        macdPaneIdx,
       );
       const s = chartRef.current.addSeries(
         LineSeries,
@@ -615,19 +663,26 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: macdScaleId,
         },
-        paneIndex,
+        macdPaneIdx,
       );
       const h = chartRef.current.addSeries(
         HistogramSeries,
-        { priceLineVisible: false, lastValueVisible: false },
-        paneIndex,
+        { 
+          priceLineVisible: false, 
+          lastValueVisible: false,
+          priceScaleId: macdScaleId,
+        },
+        macdPaneIdx,
       );
       macdRef.current = m;
       macdSignalRef.current = s;
       macdHistRef.current = h;
       try {
-        chartRef.current.panes()[paneIndex]?.setStretchFactor(1);
+        if (macdPaneIdx > 0) {
+          chartRef.current.panes()[macdPaneIdx]?.setStretchFactor(1);
+        }
         chartRef.current.panes()[0]?.setStretchFactor(3);
       } catch {}
       updateMACD();
@@ -641,13 +696,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.macd, indicators.rsi]);
+  }, [indicators.macd, macdPaneIdx, macdScaleId]);
 
   // ADX/DMI pane
   useEffect(() => {
     if (!chartRef.current) return;
     if (indicators.adx && !adxRef.current) {
-      const paneIndex = 1 + (indicators.rsi ? 1 : 0) + (indicators.macd ? 1 : 0);
       const aColor = configRef.current.adxColor ?? "#ef5350";
       const pColor = configRef.current.plusDIColor ?? "#2196f3";
       const mColor = configRef.current.minusDIColor ?? "#787b86";
@@ -659,8 +713,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: adxScaleId,
         },
-        paneIndex,
+        adxPaneIdx,
       );
 
       const plusDISeries = chartRef.current.addSeries(
@@ -670,8 +725,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: adxScaleId,
         },
-        paneIndex,
+        adxPaneIdx,
       );
 
       const minusDISeries = chartRef.current.addSeries(
@@ -681,8 +737,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: adxScaleId,
         },
-        paneIndex,
+        adxPaneIdx,
       );
 
       const adxKeyLevelSeries = chartRef.current.addSeries(
@@ -693,8 +750,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           lineStyle: 2, // Discontinua
           priceLineVisible: false,
           lastValueVisible: false,
+          priceScaleId: adxScaleId,
         },
-        paneIndex,
+        adxPaneIdx,
       );
 
       adxRef.current = adxSeries;
@@ -703,7 +761,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       adxKeyLevelRef.current = adxKeyLevelSeries;
 
       try {
-        chartRef.current.panes()[paneIndex]?.setStretchFactor(1);
+        if (adxPaneIdx > 0) {
+          chartRef.current.panes()[adxPaneIdx]?.setStretchFactor(1);
+        }
         chartRef.current.panes()[0]?.setStretchFactor(3);
       } catch {}
       updateADX();
@@ -719,7 +779,15 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.adx, indicators.rsi, indicators.macd]);
+  }, [indicators.adx, adxPaneIdx, adxScaleId]);
+
+  // Recompute offsets when indicator visibility or pane assignment changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      recomputePaneOffsets();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [indicators, indicatorPanes]);
 
   // Visibility — eye toggle (hidden state) + enabled state combined
   useEffect(() => {
@@ -1111,10 +1179,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     indicators[key] && (key === "volume" || true); // always renderable if enabled
   void isShown;
 
-  // Determine which pane each indicator lives in (based on current layout)
-  const rsiPaneIdx = 1;
-  const macdPaneIdx = indicators.rsi ? 2 : 1;
-  const adxPaneIdx = 1 + (indicators.rsi ? 1 : 0) + (indicators.macd ? 1 : 0);
+
 
   let measureRender: React.ReactNode = null;
   if (
@@ -1323,70 +1388,133 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("volume")}
             />
           )}
+          {indicators.rsi && rsiPaneIdx === 0 && (
+            <IndicatorPill
+              name={`RSI ${config.rsi}`}
+              value={lastValues.rsi !== undefined ? lastValues.rsi.toFixed(2) : undefined}
+              color={INDICATOR_COLORS.rsi}
+              hidden={hidden.rsi}
+              onToggleHide={() => toggleHidden("rsi")}
+              onSettings={() => setSettingsTarget("rsi")}
+              onRemove={() => removeIndicator("rsi")}
+              onMoveDown={() => handleMovePane("rsi", "down")}
+            />
+          )}
+          {indicators.macd && macdPaneIdx === 0 && (
+            <IndicatorPill
+              name={`MACD ${config.macdFast}, ${config.macdSlow}, ${config.macdSignal}`}
+              value={
+                lastValues.macd !== undefined
+                  ? `${lastValues.macd.toFixed(2)} / ${(lastValues.macdSignal ?? 0).toFixed(2)}`
+                  : undefined
+              }
+              color={INDICATOR_COLORS.macd}
+              hidden={hidden.macd}
+              onToggleHide={() => toggleHidden("macd")}
+              onSettings={() => setSettingsTarget("macd")}
+              onRemove={() => removeIndicator("macd")}
+              onMoveDown={() => handleMovePane("macd", "down")}
+            />
+          )}
+          {indicators.adx && adxPaneIdx === 0 && (
+            <IndicatorPill
+              name={`DMI/ADX ${config.dmiLength}, ${config.adxLength}`}
+              value={
+                lastValues.adx !== undefined
+                  ? `ADX ${lastValues.adx.toFixed(2)} | +DI ${lastValues.plusDI !== undefined ? lastValues.plusDI.toFixed(2) : ""} | -DI ${lastValues.minusDI !== undefined ? lastValues.minusDI.toFixed(2) : ""}`
+                  : undefined
+              }
+              color={INDICATOR_COLORS.adx}
+              hidden={hidden.adx}
+              onToggleHide={() => toggleHidden("adx")}
+              onSettings={() => setSettingsTarget("adx")}
+              onRemove={() => removeIndicator("adx")}
+              onMoveDown={() => handleMovePane("adx", "down")}
+            />
+          )}
         </div>
       </div>
 
-      {/* RSI pane label */}
-      {indicators.rsi && paneOffsets[rsiPaneIdx] && (
-        <div
-          style={{ top: paneOffsets[rsiPaneIdx].top + 6, left: 12 }}
-          className="pointer-events-none absolute z-10"
-        >
-          <IndicatorPill
-            name={`RSI ${config.rsi}`}
-            value={lastValues.rsi !== undefined ? lastValues.rsi.toFixed(2) : undefined}
-            color={INDICATOR_COLORS.rsi}
-            hidden={hidden.rsi}
-            onToggleHide={() => toggleHidden("rsi")}
-            onSettings={() => setSettingsTarget("rsi")}
-            onRemove={() => removeIndicator("rsi")}
-          />
-        </div>
-      )}
+      {/* Dynamic Pane Indicator Containers for sub-panes */}
+      {paneOffsets.map((offset, paneIdx) => {
+        if (paneIdx === 0) return null;
 
-      {/* MACD pane label */}
-      {indicators.macd && paneOffsets[macdPaneIdx] && (
-        <div
-          style={{ top: paneOffsets[macdPaneIdx].top + 6, left: 12 }}
-          className="pointer-events-none absolute z-10"
-        >
-          <IndicatorPill
-            name={`MACD ${config.macdFast}, ${config.macdSlow}, ${config.macdSignal}`}
-            value={
-              lastValues.macd !== undefined
-                ? `${lastValues.macd.toFixed(2)} / ${(lastValues.macdSignal ?? 0).toFixed(2)}`
-                : undefined
-            }
-            color={INDICATOR_COLORS.macd}
-            hidden={hidden.macd}
-            onToggleHide={() => toggleHidden("macd")}
-            onSettings={() => setSettingsTarget("macd")}
-            onRemove={() => removeIndicator("macd")}
-          />
-        </div>
-      )}
+        const indicatorsInPane: React.ReactNode[] = [];
 
-      {/* ADX pane label */}
-      {indicators.adx && paneOffsets[adxPaneIdx] && (
-        <div
-          style={{ top: paneOffsets[adxPaneIdx].top + 6, left: 12 }}
-          className="pointer-events-none absolute z-10"
-        >
-          <IndicatorPill
-            name={`DMI/ADX ${config.dmiLength}, ${config.adxLength}`}
-            value={
-              lastValues.adx !== undefined
-                ? `ADX ${lastValues.adx.toFixed(2)} | +DI ${lastValues.plusDI !== undefined ? lastValues.plusDI.toFixed(2) : ""} | -DI ${lastValues.minusDI !== undefined ? lastValues.minusDI.toFixed(2) : ""}`
-                : undefined
-            }
-            color={INDICATOR_COLORS.adx}
-            hidden={hidden.adx}
-            onToggleHide={() => toggleHidden("adx")}
-            onSettings={() => setSettingsTarget("adx")}
-            onRemove={() => removeIndicator("adx")}
-          />
-        </div>
-      )}
+        if (indicators.rsi && rsiPaneIdx === paneIdx) {
+          const currentPane = indicatorPanes.rsi;
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="rsi"
+              name={`RSI ${config.rsi}`}
+              value={lastValues.rsi !== undefined ? lastValues.rsi.toFixed(2) : undefined}
+              color={INDICATOR_COLORS.rsi}
+              hidden={hidden.rsi}
+              onToggleHide={() => toggleHidden("rsi")}
+              onSettings={() => setSettingsTarget("rsi")}
+              onRemove={() => removeIndicator("rsi")}
+              onMoveUp={currentPane !== "main" ? () => handleMovePane("rsi", "up") : undefined}
+              onMoveDown={currentPane !== "adx" ? () => handleMovePane("rsi", "down") : undefined}
+            />
+          );
+        }
+
+        if (indicators.macd && macdPaneIdx === paneIdx) {
+          const currentPane = indicatorPanes.macd;
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="macd"
+              name={`MACD ${config.macdFast}, ${config.macdSlow}, ${config.macdSignal}`}
+              value={
+                lastValues.macd !== undefined
+                  ? `${lastValues.macd.toFixed(2)} / ${(lastValues.macdSignal ?? 0).toFixed(2)}`
+                  : undefined
+              }
+              color={INDICATOR_COLORS.macd}
+              hidden={hidden.macd}
+              onToggleHide={() => toggleHidden("macd")}
+              onSettings={() => setSettingsTarget("macd")}
+              onRemove={() => removeIndicator("macd")}
+              onMoveUp={currentPane !== "main" ? () => handleMovePane("macd", "up") : undefined}
+              onMoveDown={currentPane !== "adx" ? () => handleMovePane("macd", "down") : undefined}
+            />
+          );
+        }
+
+        if (indicators.adx && adxPaneIdx === paneIdx) {
+          const currentPane = indicatorPanes.adx;
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="adx"
+              name={`DMI/ADX ${config.dmiLength}, ${config.adxLength}`}
+              value={
+                lastValues.adx !== undefined
+                  ? `ADX ${lastValues.adx.toFixed(2)} | +DI ${lastValues.plusDI !== undefined ? lastValues.plusDI.toFixed(2) : ""} | -DI ${lastValues.minusDI !== undefined ? lastValues.minusDI.toFixed(2) : ""}`
+                  : undefined
+              }
+              color={INDICATOR_COLORS.adx}
+              hidden={hidden.adx}
+              onToggleHide={() => toggleHidden("adx")}
+              onSettings={() => setSettingsTarget("adx")}
+              onRemove={() => removeIndicator("adx")}
+              onMoveUp={currentPane !== "main" ? () => handleMovePane("adx", "up") : undefined}
+              onMoveDown={currentPane !== "adx" ? () => handleMovePane("adx", "down") : undefined}
+            />
+          );
+        }
+
+        if (indicatorsInPane.length === 0) return null;
+
+        return (
+          <div
+            key={`pane-pills-${paneIdx}`}
+            style={{ top: offset.top + 6, left: 12 }}
+            className="pointer-events-none absolute z-10 flex flex-col items-start gap-1"
+          >
+            {indicatorsInPane}
+          </div>
+        );
+      })}
     </div>
   );
 }

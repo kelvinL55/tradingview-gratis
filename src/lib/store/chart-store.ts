@@ -21,6 +21,18 @@ export interface PriceLine {
   price: number;
 }
 
+export interface ChartProfile {
+  id: string;
+  name: string;
+  symbol: string;
+  timeframe: Timeframe;
+  indicators: Record<IndicatorKey, boolean>;
+  hidden: Record<IndicatorKey, boolean>;
+  config: IndicatorConfig;
+  timezone: "UTC" | "Local";
+  indicatorPanes: Record<"rsi" | "macd" | "adx", string>;
+}
+
 export interface IndicatorConfig {
   ema20: number;
   ema50: number;
@@ -97,6 +109,9 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
   timezone: "UTC" | "Local";
+  indicatorPanes: Record<"rsi" | "macd" | "adx", string>;
+  profiles: Record<string, ChartProfile | null>;
+  activeProfileId: string | null;
 
   // Ephemeral UI state (not persisted)
   tool: DrawingTool;
@@ -120,6 +135,9 @@ interface ChartState {
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
   setTimezone: (tz: "UTC" | "Local") => void;
+  moveIndicatorPane: (key: "rsi" | "macd" | "adx", targetPane: string) => void;
+  saveProfile: (id: string) => void;
+  loadProfile: (id: string) => void;
 }
 
 export const useChartStore = create<ChartState>()(
@@ -148,6 +166,18 @@ export const useChartStore = create<ChartState>()(
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
       timezone: "UTC",
+      indicatorPanes: {
+        rsi: "rsi",
+        macd: "macd",
+        adx: "adx",
+      },
+      profiles: {
+        "1": null,
+        "2": null,
+        "3": null,
+        "4": null,
+      },
+      activeProfileId: null,
       tool: "cursor",
       priceLines: [],
       symbolDialogOpen: false,
@@ -206,10 +236,47 @@ export const useChartStore = create<ChartState>()(
       setSymbolDialogOpen: (symbolDialogOpen) => set({ symbolDialogOpen }),
       setSettingsTarget: (settingsTarget) => set({ settingsTarget }),
       setTimezone: (timezone) => set({ timezone }),
+      moveIndicatorPane: (key, targetPane) =>
+        set((s) => ({
+          indicatorPanes: { ...s.indicatorPanes, [key]: targetPane },
+        })),
+      saveProfile: (id) =>
+        set((s) => {
+          const profile: ChartProfile = {
+            id,
+            name: `Perfil ${id}`,
+            symbol: s.symbol,
+            timeframe: s.timeframe,
+            indicators: { ...s.indicators },
+            hidden: { ...s.hidden },
+            config: { ...s.config },
+            timezone: s.timezone,
+            indicatorPanes: { ...s.indicatorPanes },
+          };
+          return {
+            profiles: { ...s.profiles, [id]: profile },
+            activeProfileId: id,
+          };
+        }),
+      loadProfile: (id) =>
+        set((s) => {
+          const profile = s.profiles[id];
+          if (!profile) return {};
+          return {
+            symbol: profile.symbol,
+            timeframe: profile.timeframe,
+            indicators: { ...profile.indicators },
+            hidden: { ...profile.hidden },
+            config: { ...profile.config },
+            timezone: profile.timezone,
+            indicatorPanes: { ...profile.indicatorPanes },
+            activeProfileId: id,
+          };
+        }),
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 2,
+      version: 4,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -244,6 +311,32 @@ export const useChartStore = create<ChartState>()(
             }
           }
         }
+        if (version < 3) {
+          if (state) {
+            if (!state.indicatorPanes) {
+              state.indicatorPanes = {
+                rsi: "rsi",
+                macd: "macd",
+                adx: "adx",
+              };
+            }
+          }
+        }
+        if (version < 4) {
+          if (state) {
+            if (!state.profiles) {
+              state.profiles = {
+                "1": null,
+                "2": null,
+                "3": null,
+                "4": null,
+              };
+            }
+            if (state.activeProfileId === undefined) {
+              state.activeProfileId = null;
+            }
+          }
+        }
         return state;
       },
       partialize: (s) => ({
@@ -254,6 +347,9 @@ export const useChartStore = create<ChartState>()(
         config: s.config,
         watchlist: s.watchlist,
         timezone: s.timezone,
+        indicatorPanes: s.indicatorPanes,
+        profiles: s.profiles,
+        activeProfileId: s.activeProfileId,
       }),
     },
   ),
