@@ -50,24 +50,26 @@ export function BottomPanel() {
         value={t ? formatPct(t.priceChangePercent) : "—"}
         valueClass={t ? upClass(t.priceChangePercent) : ""}
       />
-      <Stat
-        label="24h Alto"
-        value={t ? formatPrice(t.highPrice) : "—"}
-        valueClass="text-tv-green"
-      />
-      <Stat
-        label="24h Bajo"
-        value={t ? formatPrice(t.lowPrice) : "—"}
-        valueClass="text-tv-red"
-      />
-      <Stat
-        label="24h Vol (base)"
-        value={t ? formatVolume(t.volume) : "—"}
-      />
-      <Stat
-        label="24h Vol (USDT)"
-        value={t ? formatVolume(t.quoteVolume) : "—"}
-      />
+      <div className="hidden md:flex items-center gap-0">
+        <Stat
+          label="24h Alto"
+          value={t ? formatPrice(t.highPrice) : "—"}
+          valueClass="text-tv-green"
+        />
+        <Stat
+          label="24h Bajo"
+          value={t ? formatPrice(t.lowPrice) : "—"}
+          valueClass="text-tv-red"
+        />
+        <Stat
+          label="24h Vol (base)"
+          value={t ? formatVolume(t.volume) : "—"}
+        />
+        <Stat
+          label="24h Vol (USDT)"
+          value={t ? formatVolume(t.quoteVolume) : "—"}
+        />
+      </div>
       <div className="ml-auto flex items-center gap-3 text-[10px] text-tv-text-dim">
         <div className="flex items-center gap-1.5">
           <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-tv-green" />

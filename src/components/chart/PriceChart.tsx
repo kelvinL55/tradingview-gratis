@@ -15,7 +15,7 @@ import {
 } from "lightweight-charts";
 import { fetchKlines } from "@/lib/binance/rest";
 import { getBinanceWS } from "@/lib/binance/ws";
-import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi } from "@/lib/indicators";
+import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi, rci } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
   INDICATOR_COLORS,
@@ -135,6 +135,9 @@ interface LastValues {
   adx?: number;
   plusDI?: number;
   minusDI?: number;
+  rci1?: number;
+  rci2?: number;
+  rci3?: number;
 }
 
 interface PaneOffset {
@@ -174,10 +177,16 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const macdRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
   const macdHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const macdAreaRef = useRef<ISeriesApi<"Area"> | null>(null);
   const adxRef = useRef<ISeriesApi<"Line"> | null>(null);
   const plusDIRef = useRef<ISeriesApi<"Line"> | null>(null);
   const minusDIRef = useRef<ISeriesApi<"Line"> | null>(null);
   const adxKeyLevelRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rci1Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const rci2Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const rci3Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const rciOverboughtRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rciOversoldRef = useRef<ISeriesApi<"Line"> | null>(null);
   const candlesRef = useRef<Candle[]>([]);
   const priceLinesMapRef = useRef<Map<string, IPriceLine>>(new Map());
 
@@ -218,8 +227,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
   if (indicators.rsi) activePaneIds.add(indicatorPanes.rsi);
   if (indicators.macd) activePaneIds.add(indicatorPanes.macd);
   if (indicators.adx) activePaneIds.add(indicatorPanes.adx);
+  if (indicators.rci) activePaneIds.add(indicatorPanes.rci);
 
-  const PANE_ORDER = ["main", "rsi", "macd", "adx"];
+  const PANE_ORDER = ["main", "rsi", "macd", "adx", "rci"];
   const visiblePanes = PANE_ORDER.filter((id) => activePaneIds.has(id));
 
   const getPaneIndex = (paneId: string) => {
@@ -230,20 +240,22 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const rsiPaneIdx = getPaneIndex(indicatorPanes.rsi);
   const macdPaneIdx = getPaneIndex(indicatorPanes.macd);
   const adxPaneIdx = getPaneIndex(indicatorPanes.adx);
+  const rciPaneIdx = getPaneIndex(indicatorPanes.rci);
 
   const rsiScaleId = indicatorPanes.rsi === "rsi" ? "right" : "left";
   const macdScaleId = indicatorPanes.macd === "macd" ? "right" : "left";
   const adxScaleId = indicatorPanes.adx === "adx" ? "right" : "left";
+  const rciScaleId = indicatorPanes.rci === "rci" ? "right" : "left";
 
-  const handleMovePane = (key: "rsi" | "macd" | "adx", direction: "up" | "down") => {
+  const handleMovePane = (key: "rsi" | "macd" | "adx" | "rci", direction: "up" | "down") => {
     const currentPane = indicatorPanes[key];
     const idx = PANE_ORDER.indexOf(currentPane);
     if (idx === -1) return;
 
     if (direction === "up" && idx > 0) {
-      moveIndicatorPane(key, PANE_ORDER[idx - 1]);
+      moveIndicatorPane(key, PANE_ORDER[idx - 1] as any);
     } else if (direction === "down" && idx < PANE_ORDER.length - 1) {
-      moveIndicatorPane(key, PANE_ORDER[idx + 1]);
+      moveIndicatorPane(key, PANE_ORDER[idx + 1] as any);
     }
   };
   const measureRef = useRef(measure);
@@ -676,9 +688,19 @@ export function PriceChart({ symbol, timeframe }: Props) {
         },
         macdPaneIdx,
       );
+      const area = chartRef.current.addSeries(
+        AreaSeries,
+        {
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: macdScaleId,
+        },
+        macdPaneIdx,
+      );
       macdRef.current = m;
       macdSignalRef.current = s;
       macdHistRef.current = h;
+      macdAreaRef.current = area;
       try {
         if (macdPaneIdx > 0) {
           chartRef.current.panes()[macdPaneIdx]?.setStretchFactor(1);
@@ -690,9 +712,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
       if (macdRef.current) chartRef.current.removeSeries(macdRef.current);
       if (macdSignalRef.current) chartRef.current.removeSeries(macdSignalRef.current);
       if (macdHistRef.current) chartRef.current.removeSeries(macdHistRef.current);
+      if (macdAreaRef.current) chartRef.current.removeSeries(macdAreaRef.current);
       macdRef.current = null;
       macdSignalRef.current = null;
       macdHistRef.current = null;
+      macdAreaRef.current = null;
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -781,6 +805,101 @@ export function PriceChart({ symbol, timeframe }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators.adx, adxPaneIdx, adxScaleId]);
 
+  // RCI pane
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (indicators.rci && !rci1Ref.current) {
+      const rci1 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: configRef.current.rciColor1 ?? "#ef5350",
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rciScaleId,
+        },
+        rciPaneIdx,
+      );
+
+      const rci2 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: configRef.current.rciColor2 ?? "#2196f3",
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rciScaleId,
+        },
+        rciPaneIdx,
+      );
+
+      const rci3 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: configRef.current.rciColor3 ?? "#ab47bc",
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rciScaleId,
+        },
+        rciPaneIdx,
+      );
+
+      const ob = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: configRef.current.rciOverboughtColor ?? "#2a2e39",
+          lineWidth: 1,
+          lineStyle: 3,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rciScaleId,
+        },
+        rciPaneIdx,
+      );
+
+      const os = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: configRef.current.rciOversoldColor ?? "#2a2e39",
+          lineWidth: 1,
+          lineStyle: 3,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rciScaleId,
+        },
+        rciPaneIdx,
+      );
+
+      rci1Ref.current = rci1;
+      rci2Ref.current = rci2;
+      rci3Ref.current = rci3;
+      rciOverboughtRef.current = ob;
+      rciOversoldRef.current = os;
+
+      try {
+        if (rciPaneIdx > 0) {
+          chartRef.current.panes()[rciPaneIdx]?.setStretchFactor(1);
+        }
+        chartRef.current.panes()[0]?.setStretchFactor(3);
+      } catch {}
+      updateRCI();
+    } else if (!indicators.rci && rci1Ref.current && chartRef.current) {
+      chartRef.current.removeSeries(rci1Ref.current);
+      if (rci2Ref.current) chartRef.current.removeSeries(rci2Ref.current);
+      if (rci3Ref.current) chartRef.current.removeSeries(rci3Ref.current);
+      if (rciOverboughtRef.current) chartRef.current.removeSeries(rciOverboughtRef.current);
+      if (rciOversoldRef.current) chartRef.current.removeSeries(rciOversoldRef.current);
+      rci1Ref.current = null;
+      rci2Ref.current = null;
+      rci3Ref.current = null;
+      rciOverboughtRef.current = null;
+      rciOversoldRef.current = null;
+    }
+    requestAnimationFrame(() => recomputePaneOffsets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.rci, rciPaneIdx, rciScaleId]);
+
   // Recompute offsets when indicator visibility or pane assignment changes
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -801,15 +920,40 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (rsi50Ref.current) rsi50Ref.current.applyOptions({ visible: v("rsi") });
     if (rsi70Ref.current) rsi70Ref.current.applyOptions({ visible: v("rsi") });
     if (rsiMaRef.current) rsiMaRef.current.applyOptions({ visible: v("rsi") && rsiMaType !== "None" });
-    if (macdRef.current) macdRef.current.applyOptions({ visible: v("macd") });
-    if (macdSignalRef.current) macdSignalRef.current.applyOptions({ visible: v("macd") });
-    if (macdHistRef.current) macdHistRef.current.applyOptions({ visible: v("macd") });
-    if (adxRef.current) adxRef.current.applyOptions({ visible: v("adx") });
-    if (plusDIRef.current) plusDIRef.current.applyOptions({ visible: v("adx") });
-    if (minusDIRef.current) minusDIRef.current.applyOptions({ visible: v("adx") });
-    if (adxKeyLevelRef.current) adxKeyLevelRef.current.applyOptions({ visible: v("adx") });
+    
+    if (macdRef.current) macdRef.current.applyOptions({ visible: v("macd") && (config.macdShowMACD ?? true) });
+    if (macdSignalRef.current) macdSignalRef.current.applyOptions({ visible: v("macd") && (config.macdShowSignal ?? true) });
+    if (macdHistRef.current) macdHistRef.current.applyOptions({ visible: v("macd") && (config.macdShowHist ?? true) });
+    if (macdAreaRef.current) macdAreaRef.current.applyOptions({ visible: v("macd") && (config.macdShowMountain ?? false) });
+
+    if (adxRef.current) adxRef.current.applyOptions({ visible: v("adx") && (config.adxShowLine ?? true) });
+    if (plusDIRef.current) plusDIRef.current.applyOptions({ visible: v("adx") && (config.adxShowPlusDI ?? true) });
+    if (minusDIRef.current) minusDIRef.current.applyOptions({ visible: v("adx") && (config.adxShowMinusDI ?? true) });
+    if (adxKeyLevelRef.current) adxKeyLevelRef.current.applyOptions({ visible: v("adx") && (config.adxShowKeyLevel ?? true) });
+
+    if (rci1Ref.current) rci1Ref.current.applyOptions({ visible: v("rci") && (config.rciShow1 ?? true) });
+    if (rci2Ref.current) rci2Ref.current.applyOptions({ visible: v("rci") && (config.rciShow2 ?? true) });
+    if (rci3Ref.current) rci3Ref.current.applyOptions({ visible: v("rci") && (config.rciShow3 ?? false) });
+    if (rciOverboughtRef.current) rciOverboughtRef.current.applyOptions({ visible: v("rci") });
+    if (rciOversoldRef.current) rciOversoldRef.current.applyOptions({ visible: v("rci") });
+
     if (volumeSeriesRef.current) volumeSeriesRef.current.applyOptions({ visible: v("volume") });
-  }, [indicators, hidden, config.rsiMaType]);
+  }, [
+    indicators,
+    hidden,
+    config.rsiMaType,
+    config.macdShowMACD,
+    config.macdShowSignal,
+    config.macdShowHist,
+    config.macdShowMountain,
+    config.adxShowLine,
+    config.adxShowPlusDI,
+    config.adxShowMinusDI,
+    config.adxShowKeyLevel,
+    config.rciShow1,
+    config.rciShow2,
+    config.rciShow3,
+  ]);
 
   // Recompute indicators when config changes (periods)
   useEffect(() => {
@@ -840,7 +984,23 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
   useEffect(() => {
     updateMACD();
-  }, [config.macdFast, config.macdSlow, config.macdSignal]);
+  }, [
+    config.macdFast,
+    config.macdSlow,
+    config.macdSignal,
+    config.macdBullishStrongColor,
+    config.macdBullishWeakColor,
+    config.macdBearishStrongColor,
+    config.macdBearishWeakColor,
+    config.macdShowMountain,
+    config.macdMountainOpacity,
+    config.macdColor,
+  ]);
+
+  useEffect(() => {
+    if (macdRef.current) macdRef.current.applyOptions({ color: config.macdColor });
+    if (macdSignalRef.current) macdSignalRef.current.applyOptions({ color: config.macdSignalColor });
+  }, [config.macdColor, config.macdSignalColor]);
 
   useEffect(() => {
     updateADX();
@@ -865,6 +1025,18 @@ export function PriceChart({ symbol, timeframe }: Props) {
       adxKeyLevelRef.current.applyOptions({ color: kColor });
     }
   }, [config.adxColor, config.plusDIColor, config.minusDIColor, config.adxKeyLevelColor]);
+
+  useEffect(() => {
+    updateRCI();
+  }, [config.rciLength1, config.rciLength2, config.rciLength3, config.rciOverbought, config.rciOversold]);
+
+  useEffect(() => {
+    if (rci1Ref.current) rci1Ref.current.applyOptions({ color: config.rciColor1 });
+    if (rci2Ref.current) rci2Ref.current.applyOptions({ color: config.rciColor2 });
+    if (rci3Ref.current) rci3Ref.current.applyOptions({ color: config.rciColor3 });
+    if (rciOverboughtRef.current) rciOverboughtRef.current.applyOptions({ color: config.rciOverboughtColor });
+    if (rciOversoldRef.current) rciOversoldRef.current.applyOptions({ color: config.rciOversoldColor });
+  }, [config.rciColor1, config.rciColor2, config.rciColor3, config.rciOverboughtColor, config.rciOversoldColor]);
 
   // Sync price lines from store to the candle series
   useEffect(() => {
@@ -1002,19 +1174,101 @@ export function PriceChart({ symbol, timeframe }: Props) {
     macdSignalRef.current?.setData(
       m.map((p) => ({ time: p.time as UTCTimestamp, value: p.signal })),
     );
+    
     macdHistRef.current?.setData(
-      m.map((p) => ({
-        time: p.time as UTCTimestamp,
-        value: p.histogram,
-        color: p.histogram >= 0 ? `${TV_COLORS.green}80` : `${TV_COLORS.red}80`,
-      })),
+      m.map((p, i) => {
+        const val = p.histogram;
+        const prevVal = i > 0 ? m[i - 1].histogram : val;
+        let color = cfg.macdBullishStrongColor ?? "#26a69a";
+        if (val >= 0) {
+          if (val >= prevVal) {
+            color = cfg.macdBullishStrongColor ?? "#26a69a";
+          } else {
+            color = cfg.macdBullishWeakColor ?? "#1e6a5f";
+          }
+        } else {
+          if (val <= prevVal) {
+            color = cfg.macdBearishStrongColor ?? "#ef5350";
+          } else {
+            color = cfg.macdBearishWeakColor ?? "#953432";
+          }
+        }
+        return {
+          time: p.time as UTCTimestamp,
+          value: val,
+          color,
+        };
+      }),
     );
+
+    if (macdAreaRef.current) {
+      macdAreaRef.current.setData(
+        m.map((p) => ({ time: p.time as UTCTimestamp, value: p.macd })),
+      );
+      const mColor = cfg.macdColor ?? "#2962ff";
+      const opacity = cfg.macdMountainOpacity ?? 0.1;
+      macdAreaRef.current.applyOptions({
+        lineColor: mColor,
+        topColor: hexToRgba(mColor, opacity),
+        bottomColor: hexToRgba(mColor, 0.0),
+        visible: cfg.macdShowMountain && indicators.macd && !hidden.macd,
+      });
+    }
+
     const last = m.at(-1);
     setLastValues((prev) => ({
       ...prev,
       macd: last?.macd,
       macdSignal: last?.signal,
       macdHist: last?.histogram,
+    }));
+  }
+
+  function updateRCI() {
+    const c = candlesRef.current;
+    if (c.length === 0 || !rci1Ref.current) return;
+    const cfg = configRef.current;
+    
+    const r1 = rci(c, cfg.rciLength1);
+    const r2 = rci(c, cfg.rciLength2);
+    const r3 = rci(c, cfg.rciLength3);
+
+    rci1Ref.current.setData(
+      r1.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })),
+    );
+    if (rci2Ref.current) {
+      rci2Ref.current.setData(
+        r2.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })),
+      );
+    }
+    if (rci3Ref.current) {
+      rci3Ref.current.setData(
+        r3.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })),
+      );
+    }
+
+    const firstValidRci = r1.length > 0 ? r1 : (r2.length > 0 ? r2 : r3);
+    if (firstValidRci.length > 0) {
+      const times = firstValidRci.map((p) => p.time as UTCTimestamp);
+      if (rciOverboughtRef.current) {
+        rciOverboughtRef.current.setData([
+          { time: times[0], value: cfg.rciOverbought },
+          { time: times[times.length - 1], value: cfg.rciOverbought },
+        ]);
+      }
+      if (rciOversoldRef.current) {
+        rciOversoldRef.current.setData([
+          { time: times[0], value: cfg.rciOversold },
+          { time: times[times.length - 1], value: cfg.rciOversold },
+        ]);
+      }
+    }
+
+    setLastValues((prev) => ({
+      ...prev,
+      rci1: r1.at(-1)?.value,
+      rci2: r2.at(-1)?.value,
+      rci3: r3.at(-1)?.value,
     }));
   }
 
@@ -1090,6 +1344,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         updateRSI();
         updateMACD();
         updateADX();
+        updateRCI();
 
         // Smart auto-fit: show a tailored number of recent bars so the chart
         // looks well-proportioned regardless of timeframe or symbol.
@@ -1105,6 +1360,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           rsiRef.current?.priceScale().applyOptions({ autoScale: true });
           macdRef.current?.priceScale().applyOptions({ autoScale: true });
           adxRef.current?.priceScale().applyOptions({ autoScale: true });
+          rci1Ref.current?.priceScale().applyOptions({ autoScale: true });
         }
         requestAnimationFrame(() => recomputePaneOffsets());
 
@@ -1151,6 +1407,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             updateRSI();
             updateMACD();
             updateADX();
+            updateRCI();
             const prev = arr[arr.length - 2] ?? lastCandle;
             setLastPrice({
               value: k.close,
@@ -1432,6 +1689,22 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onMoveDown={() => handleMovePane("adx", "down")}
             />
           )}
+          {indicators.rci && rciPaneIdx === 0 && (
+            <IndicatorPill
+              name={`RCI ${config.rciLength1}, ${config.rciLength2}, ${config.rciLength3}`}
+              value={
+                lastValues.rci1 !== undefined
+                  ? `RCI(1): ${lastValues.rci1.toFixed(1)}${lastValues.rci2 !== undefined ? ` | RCI(2): ${lastValues.rci2.toFixed(1)}` : ""}`
+                  : undefined
+              }
+              color={INDICATOR_COLORS.rci}
+              hidden={hidden.rci}
+              onToggleHide={() => toggleHidden("rci")}
+              onSettings={() => setSettingsTarget("rci")}
+              onRemove={() => removeIndicator("rci")}
+              onMoveDown={() => handleMovePane("rci", "down")}
+            />
+          )}
         </div>
       </div>
 
@@ -1499,6 +1772,28 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("adx")}
               onMoveUp={currentPane !== "main" ? () => handleMovePane("adx", "up") : undefined}
               onMoveDown={currentPane !== "adx" ? () => handleMovePane("adx", "down") : undefined}
+            />
+          );
+        }
+
+        if (indicators.rci && rciPaneIdx === paneIdx) {
+          const currentPane = indicatorPanes.rci;
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="rci"
+              name={`RCI ${config.rciLength1}, ${config.rciLength2}, ${config.rciLength3}`}
+              value={
+                lastValues.rci1 !== undefined
+                  ? `RCI(1): ${lastValues.rci1.toFixed(1)}${lastValues.rci2 !== undefined ? ` | RCI(2): ${lastValues.rci2.toFixed(1)}` : ""}`
+                  : undefined
+              }
+              color={INDICATOR_COLORS.rci}
+              hidden={hidden.rci}
+              onToggleHide={() => toggleHidden("rci")}
+              onSettings={() => setSettingsTarget("rci")}
+              onRemove={() => removeIndicator("rci")}
+              onMoveUp={currentPane !== "main" ? () => handleMovePane("rci", "up") : undefined}
+              onMoveDown={currentPane !== "rci" ? () => handleMovePane("rci", "down") : undefined}
             />
           );
         }

@@ -11,7 +11,8 @@ export type IndicatorKey =
   | "rsi"
   | "macd"
   | "volume"
-  | "adx";
+  | "adx"
+  | "rci";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -30,7 +31,7 @@ export interface ChartProfile {
   hidden: Record<IndicatorKey, boolean>;
   config: IndicatorConfig;
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx", string>;
+  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci", string>;
 }
 
 export interface IndicatorConfig {
@@ -52,6 +53,37 @@ export interface IndicatorConfig {
   plusDIColor: string;
   minusDIColor: string;
   adxKeyLevelColor: string;
+  // DMI/ADX individual line visibilities
+  adxShowLine: boolean;
+  adxShowPlusDI: boolean;
+  adxShowMinusDI: boolean;
+  adxShowKeyLevel: boolean;
+  // MACD advanced configuration
+  macdShowMACD: boolean;
+  macdShowSignal: boolean;
+  macdShowHist: boolean;
+  macdShowMountain: boolean;
+  macdMountainOpacity: number;
+  macdColor: string;
+  macdSignalColor: string;
+  macdBullishStrongColor: string;
+  macdBullishWeakColor: string;
+  macdBearishStrongColor: string;
+  macdBearishWeakColor: string;
+  // RCI (Rank Correlation Index) configuration
+  rciLength1: number;
+  rciLength2: number;
+  rciLength3: number;
+  rciColor1: string;
+  rciColor2: string;
+  rciColor3: string;
+  rciShow1: boolean;
+  rciShow2: boolean;
+  rciShow3: boolean;
+  rciOverbought: number;
+  rciOversold: number;
+  rciOverboughtColor: string;
+  rciOversoldColor: string;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
@@ -73,6 +105,37 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   plusDIColor: "#2196f3",
   minusDIColor: "#787b86",
   adxKeyLevelColor: "#ffffff",
+  // ADX/DMI visibilities
+  adxShowLine: true,
+  adxShowPlusDI: true,
+  adxShowMinusDI: true,
+  adxShowKeyLevel: true,
+  // MACD defaults
+  macdShowMACD: true,
+  macdShowSignal: true,
+  macdShowHist: true,
+  macdShowMountain: false,
+  macdMountainOpacity: 0.1,
+  macdColor: "#2962ff",
+  macdSignalColor: "#ffb74d",
+  macdBullishStrongColor: "#26a69a",
+  macdBullishWeakColor: "#1e6a5f",
+  macdBearishStrongColor: "#ef5350",
+  macdBearishWeakColor: "#953432",
+  // RCI defaults
+  rciLength1: 9,
+  rciLength2: 26,
+  rciLength3: 52,
+  rciColor1: "#ef5350",
+  rciColor2: "#2196f3",
+  rciColor3: "#ab47bc",
+  rciShow1: true,
+  rciShow2: true,
+  rciShow3: false,
+  rciOverbought: 80,
+  rciOversold: -80,
+  rciOverboughtColor: "#2a2e39",
+  rciOversoldColor: "#2a2e39",
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -83,6 +146,7 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   macd: "#2962ff",
   volume: "#787b86",
   adx: "#ef5350",
+  rci: "#26c6da",
 };
 
 export const DEFAULT_WATCHLIST = [
@@ -109,7 +173,7 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx", string>;
+  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci", string>;
   profiles: Record<string, ChartProfile | null>;
   activeProfileId: string | null;
 
@@ -135,7 +199,7 @@ interface ChartState {
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
   setTimezone: (tz: "UTC" | "Local") => void;
-  moveIndicatorPane: (key: "rsi" | "macd" | "adx", targetPane: string) => void;
+  moveIndicatorPane: (key: "rsi" | "macd" | "adx" | "rci", targetPane: string) => void;
   saveProfile: (id: string) => void;
   loadProfile: (id: string) => void;
 }
@@ -153,6 +217,7 @@ export const useChartStore = create<ChartState>()(
         macd: false,
         volume: true,
         adx: false,
+        rci: false,
       },
       hidden: {
         ema20: false,
@@ -162,6 +227,7 @@ export const useChartStore = create<ChartState>()(
         macd: false,
         volume: false,
         adx: false,
+        rci: false,
       },
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
@@ -170,6 +236,7 @@ export const useChartStore = create<ChartState>()(
         rsi: "rsi",
         macd: "macd",
         adx: "adx",
+        rci: "rci",
       },
       profiles: {
         "1": null,
@@ -276,7 +343,7 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 4,
+      version: 5,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -334,6 +401,25 @@ export const useChartStore = create<ChartState>()(
             }
             if (state.activeProfileId === undefined) {
               state.activeProfileId = null;
+            }
+          }
+        }
+        if (version < 5) {
+          if (state) {
+            if (state.indicators && state.indicators.rci === undefined) {
+              state.indicators = { ...state.indicators, rci: false };
+            }
+            if (state.hidden && state.hidden.rci === undefined) {
+              state.hidden = { ...state.hidden, rci: false };
+            }
+            if (state.indicatorPanes && state.indicatorPanes.rci === undefined) {
+              state.indicatorPanes = { ...state.indicatorPanes, rci: "rci" };
+            }
+            if (state.config) {
+              state.config = {
+                ...DEFAULT_CONFIG,
+                ...state.config,
+              };
             }
           }
         }

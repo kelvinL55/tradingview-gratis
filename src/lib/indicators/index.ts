@@ -249,3 +249,5 @@ function rmaNumbers(values: number[], period: number): number[] {
   return out;
 }
 
+export { rci } from "./rci";
+

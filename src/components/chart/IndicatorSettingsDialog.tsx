@@ -23,6 +23,7 @@ const TITLES: Record<IndicatorKey, string> = {
   macd: "MACD",
   volume: "Volumen",
   adx: "DMI / ADX / KEYLEVEL",
+  rci: "RCI (Rank Correlation Index)",
 };
 
 export function IndicatorSettingsDialog() {
@@ -40,7 +41,7 @@ export function IndicatorSettingsDialog() {
         if (!v) setTarget(null);
       }}
     >
-      <DialogContent className="max-w-sm bg-tv-panel">
+      <DialogContent className="bg-tv-panel max-w-full md:max-w-sm md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:bottom-auto bottom-0 top-auto left-0 right-0 translate-x-0 translate-y-0 rounded-t-xl md:rounded-xl rounded-b-none border-t md:border border-tv-border">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold">
             {target ? TITLES[target] : ""} — Configuración
@@ -88,6 +89,17 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     macdFast: config.macdFast,
     macdSlow: config.macdSlow,
     macdSignal: config.macdSignal,
+    macdShowMACD: config.macdShowMACD ?? true,
+    macdShowSignal: config.macdShowSignal ?? true,
+    macdShowHist: config.macdShowHist ?? true,
+    macdShowMountain: config.macdShowMountain ?? false,
+    macdMountainOpacity: config.macdMountainOpacity ?? 0.1,
+    macdColor: config.macdColor ?? "#2962ff",
+    macdSignalColor: config.macdSignalColor ?? "#ffb74d",
+    macdBullishStrongColor: config.macdBullishStrongColor ?? "#26a69a",
+    macdBullishWeakColor: config.macdBullishWeakColor ?? "#1e6a5f",
+    macdBearishStrongColor: config.macdBearishStrongColor ?? "#ef5350",
+    macdBearishWeakColor: config.macdBearishWeakColor ?? "#953432",
     adxLength: config.adxLength ?? 14,
     dmiLength: config.dmiLength ?? 14,
     adxKeyLevel: config.adxKeyLevel ?? 23,
@@ -95,6 +107,23 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     plusDIColor: config.plusDIColor ?? "#2196f3",
     minusDIColor: config.minusDIColor ?? "#787b86",
     adxKeyLevelColor: config.adxKeyLevelColor ?? "#ffffff",
+    adxShowLine: config.adxShowLine ?? true,
+    adxShowPlusDI: config.adxShowPlusDI ?? true,
+    adxShowMinusDI: config.adxShowMinusDI ?? true,
+    adxShowKeyLevel: config.adxShowKeyLevel ?? true,
+    rciLength1: config.rciLength1 ?? 9,
+    rciLength2: config.rciLength2 ?? 26,
+    rciLength3: config.rciLength3 ?? 52,
+    rciColor1: config.rciColor1 ?? "#ef5350",
+    rciColor2: config.rciColor2 ?? "#2196f3",
+    rciColor3: config.rciColor3 ?? "#ab47bc",
+    rciShow1: config.rciShow1 ?? true,
+    rciShow2: config.rciShow2 ?? true,
+    rciShow3: config.rciShow3 ?? false,
+    rciOverbought: config.rciOverbought ?? 80,
+    rciOversold: config.rciOversold ?? -80,
+    rciOverboughtColor: config.rciOverboughtColor ?? "#2a2e39",
+    rciOversoldColor: config.rciOversoldColor ?? "#2a2e39",
   });
 
   useEffect(() => {
@@ -110,6 +139,17 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       macdFast: config.macdFast,
       macdSlow: config.macdSlow,
       macdSignal: config.macdSignal,
+      macdShowMACD: config.macdShowMACD ?? true,
+      macdShowSignal: config.macdShowSignal ?? true,
+      macdShowHist: config.macdShowHist ?? true,
+      macdShowMountain: config.macdShowMountain ?? false,
+      macdMountainOpacity: config.macdMountainOpacity ?? 0.1,
+      macdColor: config.macdColor ?? "#2962ff",
+      macdSignalColor: config.macdSignalColor ?? "#ffb74d",
+      macdBullishStrongColor: config.macdBullishStrongColor ?? "#26a69a",
+      macdBullishWeakColor: config.macdBullishWeakColor ?? "#1e6a5f",
+      macdBearishStrongColor: config.macdBearishStrongColor ?? "#ef5350",
+      macdBearishWeakColor: config.macdBearishWeakColor ?? "#953432",
       adxLength: config.adxLength ?? 14,
       dmiLength: config.dmiLength ?? 14,
       adxKeyLevel: config.adxKeyLevel ?? 23,
@@ -117,6 +157,23 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       plusDIColor: config.plusDIColor ?? "#2196f3",
       minusDIColor: config.minusDIColor ?? "#787b86",
       adxKeyLevelColor: config.adxKeyLevelColor ?? "#ffffff",
+      adxShowLine: config.adxShowLine ?? true,
+      adxShowPlusDI: config.adxShowPlusDI ?? true,
+      adxShowMinusDI: config.adxShowMinusDI ?? true,
+      adxShowKeyLevel: config.adxShowKeyLevel ?? true,
+      rciLength1: config.rciLength1 ?? 9,
+      rciLength2: config.rciLength2 ?? 26,
+      rciLength3: config.rciLength3 ?? 52,
+      rciColor1: config.rciColor1 ?? "#ef5350",
+      rciColor2: config.rciColor2 ?? "#2196f3",
+      rciColor3: config.rciColor3 ?? "#ab47bc",
+      rciShow1: config.rciShow1 ?? true,
+      rciShow2: config.rciShow2 ?? true,
+      rciShow3: config.rciShow3 ?? false,
+      rciOverbought: config.rciOverbought ?? 80,
+      rciOversold: config.rciOversold ?? -80,
+      rciOverboughtColor: config.rciOverboughtColor ?? "#2a2e39",
+      rciOversoldColor: config.rciOversoldColor ?? "#2a2e39",
     });
     setActiveTab("inputs");
   }, [config, target]);
@@ -138,6 +195,17 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         macdFast: clamp(draft.macdFast, 2, 100),
         macdSlow: clamp(draft.macdSlow, 2, 200),
         macdSignal: clamp(draft.macdSignal, 2, 100),
+        macdShowMACD: draft.macdShowMACD,
+        macdShowSignal: draft.macdShowSignal,
+        macdShowHist: draft.macdShowHist,
+        macdShowMountain: draft.macdShowMountain,
+        macdMountainOpacity: clamp(draft.macdMountainOpacity, 0, 1),
+        macdColor: draft.macdColor,
+        macdSignalColor: draft.macdSignalColor,
+        macdBullishStrongColor: draft.macdBullishStrongColor,
+        macdBullishWeakColor: draft.macdBullishWeakColor,
+        macdBearishStrongColor: draft.macdBearishStrongColor,
+        macdBearishWeakColor: draft.macdBearishWeakColor,
       });
     else if (target === "adx")
       onSave({
@@ -148,14 +216,34 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         plusDIColor: draft.plusDIColor,
         minusDIColor: draft.minusDIColor,
         adxKeyLevelColor: draft.adxKeyLevelColor,
+        adxShowLine: draft.adxShowLine,
+        adxShowPlusDI: draft.adxShowPlusDI,
+        adxShowMinusDI: draft.adxShowMinusDI,
+        adxShowKeyLevel: draft.adxShowKeyLevel,
+      });
+    else if (target === "rci")
+      onSave({
+        rciLength1: clamp(draft.rciLength1, 2, 200),
+        rciLength2: clamp(draft.rciLength2, 2, 200),
+        rciLength3: clamp(draft.rciLength3, 2, 200),
+        rciColor1: draft.rciColor1,
+        rciColor2: draft.rciColor2,
+        rciColor3: draft.rciColor3,
+        rciShow1: draft.rciShow1,
+        rciShow2: draft.rciShow2,
+        rciShow3: draft.rciShow3,
+        rciOverbought: clamp(draft.rciOverbought, 0, 100),
+        rciOversold: clamp(draft.rciOversold, -100, 0),
+        rciOverboughtColor: draft.rciOverboughtColor,
+        rciOversoldColor: draft.rciOversoldColor,
       });
     else if (target === "volume") onSave({});
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* TradingView-like Tabs for RSI / ADX to divide Inputs vs Style */}
-      {(target === "rsi" || target === "adx") && (
+    <div className="flex flex-col gap-3 text-tv-text">
+      {/* TradingView-like Tabs for RSI / ADX / MACD / RCI to divide Inputs vs Style */}
+      {(target === "rsi" || target === "adx" || target === "macd" || target === "rci") && (
         <div className="flex border-b border-tv-border -mx-6 px-6 mb-2 text-xs">
           <button
             onClick={() => setActiveTab("inputs")}
@@ -263,6 +351,72 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
               />
             </div>
           )}
+          {target === "rci" && (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2 rounded border border-tv-border/40 p-2">
+                <div className="flex items-center justify-between">
+                  <CheckboxField
+                    label="Habilitar RCI 1"
+                    checked={draft.rciShow1}
+                    onChange={(b) => setDraft((d) => ({ ...d, rciShow1: b }))}
+                  />
+                  {draft.rciShow1 && (
+                    <div className="w-24">
+                      <Field
+                        label=""
+                        value={draft.rciLength1}
+                        onChange={(n) => setDraft((d) => ({ ...d, rciLength1: n }))}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <CheckboxField
+                    label="Habilitar RCI 2"
+                    checked={draft.rciShow2}
+                    onChange={(b) => setDraft((d) => ({ ...d, rciShow2: b }))}
+                  />
+                  {draft.rciShow2 && (
+                    <div className="w-24">
+                      <Field
+                        label=""
+                        value={draft.rciLength2}
+                        onChange={(n) => setDraft((d) => ({ ...d, rciLength2: n }))}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <CheckboxField
+                    label="Habilitar RCI 3"
+                    checked={draft.rciShow3}
+                    onChange={(b) => setDraft((d) => ({ ...d, rciShow3: b }))}
+                  />
+                  {draft.rciShow3 && (
+                    <div className="w-24">
+                      <Field
+                        label=""
+                        value={draft.rciLength3}
+                        onChange={(n) => setDraft((d) => ({ ...d, rciLength3: n }))}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <Field
+                  label="Sobrecompra"
+                  value={draft.rciOverbought}
+                  onChange={(n) => setDraft((d) => ({ ...d, rciOverbought: n }))}
+                />
+                <Field
+                  label="Sobreventa"
+                  value={draft.rciOversold}
+                  onChange={(n) => setDraft((d) => ({ ...d, rciOversold: n }))}
+                />
+              </div>
+            </div>
+          )}
           {target === "volume" && (
             <p className="text-xs text-tv-text-muted">
               El indicador de volumen no tiene parámetros configurables en esta
@@ -290,27 +444,186 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         </div>
       )}
 
+      {activeTab === "style" && target === "macd" && (
+        <div className="flex flex-col gap-3 py-2 border-b border-tv-border/20 max-h-[250px] overflow-y-auto pr-1">
+          <div className="flex items-center justify-between">
+            <CheckboxField
+              label="Mostrar MACD"
+              checked={draft.macdShowMACD}
+              onChange={(b) => setDraft((d) => ({ ...d, macdShowMACD: b }))}
+            />
+            {draft.macdShowMACD && (
+              <ColorPicker
+                value={draft.macdColor}
+                onChange={(color) => setDraft((d) => ({ ...d, macdColor: color }))}
+                label=""
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <CheckboxField
+              label="Mostrar Señal"
+              checked={draft.macdShowSignal}
+              onChange={(b) => setDraft((d) => ({ ...d, macdShowSignal: b }))}
+            />
+            {draft.macdShowSignal && (
+              <ColorPicker
+                value={draft.macdSignalColor}
+                onChange={(color) => setDraft((d) => ({ ...d, macdSignalColor: color }))}
+                label=""
+              />
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5 border-t border-tv-border/40 pt-2">
+            <CheckboxField
+              label="Mostrar Histograma"
+              checked={draft.macdShowHist}
+              onChange={(b) => setDraft((d) => ({ ...d, macdShowHist: b }))}
+            />
+            {draft.macdShowHist && (
+              <div className="grid grid-cols-2 gap-2 pl-4 pt-1">
+                <ColorPicker
+                  value={draft.macdBullishStrongColor}
+                  onChange={(color) => setDraft((d) => ({ ...d, macdBullishStrongColor: color }))}
+                  label="Alcista Fuerte"
+                />
+                <ColorPicker
+                  value={draft.macdBullishWeakColor}
+                  onChange={(color) => setDraft((d) => ({ ...d, macdBullishWeakColor: color }))}
+                  label="Alcista Débil"
+                />
+                <ColorPicker
+                  value={draft.macdBearishStrongColor}
+                  onChange={(color) => setDraft((d) => ({ ...d, macdBearishStrongColor: color }))}
+                  label="Bajista Fuerte"
+                />
+                <ColorPicker
+                  value={draft.macdBearishWeakColor}
+                  onChange={(color) => setDraft((d) => ({ ...d, macdBearishWeakColor: color }))}
+                  label="Bajista Débil"
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5 border-t border-tv-border/40 pt-2">
+            <CheckboxField
+              label="Gradiente Montaña MACD"
+              checked={draft.macdShowMountain}
+              onChange={(b) => setDraft((d) => ({ ...d, macdShowMountain: b }))}
+            />
+            {draft.macdShowMountain && (
+              <div className="flex flex-col gap-1 pl-4 pt-1">
+                <span className="text-[9px] text-tv-text-muted uppercase tracking-wider font-semibold">
+                  Opacidad de montaña: {Math.round(draft.macdMountainOpacity * 100)}%
+                </span>
+                <input
+                  type="range"
+                  min="0.0"
+                  max="1.0"
+                  step="0.05"
+                  value={draft.macdMountainOpacity}
+                  onChange={(e) => setDraft((d) => ({ ...d, macdMountainOpacity: parseFloat(e.target.value) }))}
+                  className="w-full accent-tv-blue h-1.5 rounded-lg bg-tv-border cursor-pointer appearance-none"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === "style" && target === "adx" && (
-        <div className="flex flex-col gap-4 py-2 border-b border-tv-border/20">
+        <div className="flex flex-col gap-3 py-2 border-b border-tv-border/20">
+          <div className="flex items-center justify-between">
+            <CheckboxField
+              label="Mostrar ADX"
+              checked={draft.adxShowLine}
+              onChange={(b) => setDraft((d) => ({ ...d, adxShowLine: b }))}
+            />
+            {draft.adxShowLine && (
+              <ColorPicker
+                value={draft.adxColor}
+                onChange={(color) => setDraft((d) => ({ ...d, adxColor: color }))}
+                label=""
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <CheckboxField
+              label="Mostrar +DI"
+              checked={draft.adxShowPlusDI}
+              onChange={(b) => setDraft((d) => ({ ...d, adxShowPlusDI: b }))}
+            />
+            {draft.adxShowPlusDI && (
+              <ColorPicker
+                value={draft.plusDIColor}
+                onChange={(color) => setDraft((d) => ({ ...d, plusDIColor: color }))}
+                label=""
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <CheckboxField
+              label="Mostrar -DI"
+              checked={draft.adxShowMinusDI}
+              onChange={(b) => setDraft((d) => ({ ...d, adxShowMinusDI: b }))}
+            />
+            {draft.adxShowMinusDI && (
+              <ColorPicker
+                value={draft.minusDIColor}
+                onChange={(color) => setDraft((d) => ({ ...d, minusDIColor: color }))}
+                label=""
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <CheckboxField
+              label="Mostrar Nivel Clave"
+              checked={draft.adxShowKeyLevel}
+              onChange={(b) => setDraft((d) => ({ ...d, adxShowKeyLevel: b }))}
+            />
+            {draft.adxShowKeyLevel && (
+              <ColorPicker
+                value={draft.adxKeyLevelColor}
+                onChange={(color) => setDraft((d) => ({ ...d, adxKeyLevelColor: color }))}
+                label=""
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "style" && target === "rci" && (
+        <div className="flex flex-col gap-3 py-2 border-b border-tv-border/20 max-h-[250px] overflow-y-auto pr-1">
+          {draft.rciShow1 && (
+            <ColorPicker
+              value={draft.rciColor1}
+              onChange={(color) => setDraft((d) => ({ ...d, rciColor1: color }))}
+              label="Línea RCI 1"
+            />
+          )}
+          {draft.rciShow2 && (
+            <ColorPicker
+              value={draft.rciColor2}
+              onChange={(color) => setDraft((d) => ({ ...d, rciColor2: color }))}
+              label="Línea RCI 2"
+            />
+          )}
+          {draft.rciShow3 && (
+            <ColorPicker
+              value={draft.rciColor3}
+              onChange={(color) => setDraft((d) => ({ ...d, rciColor3: color }))}
+              label="Línea RCI 3"
+            />
+          )}
           <ColorPicker
-            value={draft.adxColor}
-            onChange={(color) => setDraft((d) => ({ ...d, adxColor: color }))}
-            label="Línea ADX"
+            value={draft.rciOverboughtColor}
+            onChange={(color) => setDraft((d) => ({ ...d, rciOverboughtColor: color }))}
+            label="Línea Sobrecompra"
           />
           <ColorPicker
-            value={draft.plusDIColor}
-            onChange={(color) => setDraft((d) => ({ ...d, plusDIColor: color }))}
-            label="Línea +DI"
-          />
-          <ColorPicker
-            value={draft.minusDIColor}
-            onChange={(color) => setDraft((d) => ({ ...d, minusDIColor: color }))}
-            label="Línea -DI"
-          />
-          <ColorPicker
-            value={draft.adxKeyLevelColor}
-            onChange={(color) => setDraft((d) => ({ ...d, adxKeyLevelColor: color }))}
-            label="Línea Nivel Clave"
+            value={draft.rciOversoldColor}
+            onChange={(color) => setDraft((d) => ({ ...d, rciOversoldColor: color }))}
+            label="Línea Sobreventa"
           />
         </div>
       )}
@@ -332,6 +645,28 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   );
 }
 
+function CheckboxField({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (b: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-tv-text cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-tv-border bg-tv-bg text-tv-blue focus:ring-tv-blue accent-tv-blue"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 function Field({
   label,
   value,
@@ -343,19 +678,21 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-tv-text-muted">
-        {label}
-      </span>
+      {label && (
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-tv-text-muted">
+          {label}
+        </span>
+      )}
       <Input
         type="number"
-        min={2}
+        min={-150}
         max={500}
         value={value}
         onChange={(e) => {
           const n = parseInt(e.target.value, 10);
           if (!isNaN(n)) onChange(n);
         }}
-        className="bg-tv-bg tabular-nums"
+        className="bg-tv-bg tabular-nums h-8 text-xs border-tv-border/60"
       />
     </label>
   );
@@ -391,7 +728,7 @@ function ColorPicker({
           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
         />
       </div>
-      <span className="text-xs font-medium text-tv-text">{label}</span>
+      {label && <span className="text-xs font-medium text-tv-text">{label}</span>}
     </div>
   );
 }

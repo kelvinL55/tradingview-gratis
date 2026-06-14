@@ -34,6 +34,11 @@ const ENTRIES: Entry[] = [
     group: "Osciladores",
     label: (c) => `DMI/ADX (${c.dmiLength}, ${c.adxLength})`,
   },
+  {
+    key: "rci",
+    group: "Osciladores",
+    label: (c) => `RCI (${c.rciLength1}, ${c.rciLength2}, ${c.rciLength3})`,
+  },
 ];
 
 export function IndicatorMenu() {
