@@ -6,6 +6,7 @@ import {
   CandlestickSeries,
   LineSeries,
   AreaSeries,
+  BaselineSeries,
   HistogramSeries,
   CrosshairMode,
   type IChartApi,
@@ -170,7 +171,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const ema20Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const ema50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const ema200Ref = useRef<ISeriesApi<"Line"> | null>(null);
-  const rsiRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiOversoldRef = useRef<ISeriesApi<"Baseline"> | null>(null);
+  const rsiOverboughtRef = useRef<ISeriesApi<"Baseline"> | null>(null);
   const rsi30Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const rsi50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const rsi70Ref = useRef<ISeriesApi<"Line"> | null>(null);
@@ -566,13 +569,50 @@ export function PriceChart({ symbol, timeframe }: Props) {
       const rColor = configRef.current.rsiColor ?? "#7e57c2";
       const rMaColor = configRef.current.rsiMaColor ?? "#ffb74d";
 
-      const r = chartRef.current.addSeries(
-        AreaSeries,
+      // 1. Relleno de sobreventa (Baseline en 30) - Se agrega primero para quedar al fondo
+      const rOversold = chartRef.current.addSeries(
+        BaselineSeries,
         {
-          lineColor: rColor,
+          baseValue: { type: "price", price: 30 },
+          topLineColor: "rgba(0,0,0,0)",
+          bottomLineColor: "rgba(0,0,0,0)",
+          topFillColor1: "rgba(0,0,0,0)",
+          topFillColor2: "rgba(0,0,0,0)",
+          bottomFillColor1: "rgba(220, 60, 70, 0.28)",
+          bottomFillColor2: "rgba(220, 60, 70, 0.28)",
+          lineVisible: false,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rsiScaleId,
+        },
+        rsiPaneIdx,
+      );
+
+      // 2. Relleno de sobrecompra (Baseline en 70) - Se agrega segundo para quedar al fondo
+      const rOverbought = chartRef.current.addSeries(
+        BaselineSeries,
+        {
+          baseValue: { type: "price", price: 70 },
+          topLineColor: "rgba(0,0,0,0)",
+          bottomLineColor: "rgba(0,0,0,0)",
+          topFillColor1: "rgba(40, 180, 110, 0.28)",
+          topFillColor2: "rgba(40, 180, 110, 0.28)",
+          bottomFillColor1: "rgba(0,0,0,0)",
+          bottomFillColor2: "rgba(0,0,0,0)",
+          lineVisible: false,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rsiScaleId,
+        },
+        rsiPaneIdx,
+      );
+
+      // 3. Línea blanca principal del RSI (LineSeries)
+      const r = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: rColor,
           lineWidth: 1,
-          topColor: hexToRgba(rColor, 0.12), // Relleno superior degradado sutil
-          bottomColor: hexToRgba(rColor, 0.0), // Desvanecido a transparente
           priceLineVisible: false,
           lastValueVisible: true,
           priceScaleId: rsiScaleId,
@@ -627,6 +667,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
         rsiPaneIdx,
       );
       rsiRef.current = r;
+      rsiOversoldRef.current = rOversold;
+      rsiOverboughtRef.current = rOverbought;
       rsi30Ref.current = r30;
       rsi50Ref.current = r50;
       rsi70Ref.current = r70;
@@ -640,11 +682,15 @@ export function PriceChart({ symbol, timeframe }: Props) {
       updateRSI();
     } else if (!indicators.rsi && rsiRef.current && chartRef.current) {
       chartRef.current.removeSeries(rsiRef.current);
+      if (rsiOversoldRef.current) chartRef.current.removeSeries(rsiOversoldRef.current);
+      if (rsiOverboughtRef.current) chartRef.current.removeSeries(rsiOverboughtRef.current);
       if (rsi30Ref.current) chartRef.current.removeSeries(rsi30Ref.current);
       if (rsi50Ref.current) chartRef.current.removeSeries(rsi50Ref.current);
       if (rsi70Ref.current) chartRef.current.removeSeries(rsi70Ref.current);
       if (rsiMaRef.current) chartRef.current.removeSeries(rsiMaRef.current);
       rsiRef.current = null;
+      rsiOversoldRef.current = null;
+      rsiOverboughtRef.current = null;
       rsi30Ref.current = null;
       rsi50Ref.current = null;
       rsi70Ref.current = null;
@@ -971,9 +1017,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     const rMaColor = config.rsiMaColor ?? "#ffb74d";
     if (rsiRef.current) {
       rsiRef.current.applyOptions({
-        lineColor: rColor,
-        topColor: hexToRgba(rColor, 0.12),
-        bottomColor: hexToRgba(rColor, 0.0),
+        color: rColor,
       });
     }
     if (rsiMaRef.current) {
@@ -1122,48 +1166,40 @@ export function PriceChart({ symbol, timeframe }: Props) {
     const c = candlesRef.current;
     if (c.length === 0 || !rsiRef.current) return;
     const cfg = configRef.current;
-    const rColor = cfg.rsiColor ?? "#ffffff";
-    const rOversoldColor = "#ef5350"; // Rojo para niveles por debajo de 30
 
-    const data = rsi(c, cfg.rsi).map((p) => {
-      const isOversold = p.value < 30;
-      const lineColor = isOversold ? rOversoldColor : rColor;
-      const topColor = isOversold ? hexToRgba(rOversoldColor, 0.2) : hexToRgba(rColor, 0.12);
-      const bottomColor = isOversold ? hexToRgba(rOversoldColor, 0.0) : hexToRgba(rColor, 0.0);
-      return {
-        time: p.time as UTCTimestamp,
-        value: p.value,
-        lineColor,
-        topColor,
-        bottomColor,
-      };
-    });
-    rsiRef.current.setData(data);
+    const rsiData = rsi(c, cfg.rsi).map((p) => ({
+      time: p.time as UTCTimestamp,
+      value: p.value,
+    }));
 
-    if (rsi30Ref.current && data.length > 0)
+    rsiRef.current.setData(rsiData);
+    if (rsiOversoldRef.current) rsiOversoldRef.current.setData(rsiData);
+    if (rsiOverboughtRef.current) rsiOverboughtRef.current.setData(rsiData);
+
+    if (rsi30Ref.current && rsiData.length > 0)
       rsi30Ref.current.setData([
-        { time: data[0].time, value: 30 },
-        { time: data[data.length - 1].time, value: 30 },
+        { time: rsiData[0].time, value: 30 },
+        { time: rsiData[rsiData.length - 1].time, value: 30 },
       ]);
-    if (rsi50Ref.current && data.length > 0)
+    if (rsi50Ref.current && rsiData.length > 0)
       rsi50Ref.current.setData([
-        { time: data[0].time, value: 50 },
-        { time: data[data.length - 1].time, value: 50 },
+        { time: rsiData[0].time, value: 50 },
+        { time: rsiData[rsiData.length - 1].time, value: 50 },
       ]);
-    if (rsi70Ref.current && data.length > 0)
+    if (rsi70Ref.current && rsiData.length > 0)
       rsi70Ref.current.setData([
-        { time: data[0].time, value: 70 },
-        { time: data[data.length - 1].time, value: 70 },
+        { time: rsiData[0].time, value: 70 },
+        { time: rsiData[rsiData.length - 1].time, value: 70 },
       ]);
 
     // Calcular MA de suavizado
     const rsiMaType = cfg.rsiMaType ?? "SMA";
     const rsiMaLength = cfg.rsiMaLength ?? 14;
     let rsiMaData: { time: UTCTimestamp; value: number }[] = [];
-    if (rsiMaType !== "None" && data.length > 0) {
+    if (rsiMaType !== "None" && rsiData.length > 0) {
       const maPoints = rsiMaType === "EMA"
-        ? calculateEMA(data, rsiMaLength)
-        : calculateSMA(data, rsiMaLength);
+        ? calculateEMA(rsiData, rsiMaLength)
+        : calculateSMA(rsiData, rsiMaLength);
       rsiMaData = maPoints.map((p) => ({
         time: p.time as UTCTimestamp,
         value: p.value,
@@ -1176,7 +1212,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
     setLastValues((prev) => ({
       ...prev,
-      rsi: data.at(-1)?.value,
+      rsi: rsiData.at(-1)?.value,
       rsiMa: rsiMaType !== "None" ? rsiMaData.at(-1)?.value : undefined,
     }));
   }
