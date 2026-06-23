@@ -128,6 +128,7 @@ interface LastValues {
   ema50?: number;
   ema200?: number;
   rsi?: number;
+  rsiMa?: number;
   macd?: number;
   macdSignal?: number;
   macdHist?: number;
@@ -573,7 +574,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           topColor: hexToRgba(rColor, 0.12), // Relleno superior degradado sutil
           bottomColor: hexToRgba(rColor, 0.0), // Desvanecido a transparente
           priceLineVisible: false,
-          lastValueVisible: false,
+          lastValueVisible: true,
           priceScaleId: rsiScaleId,
         },
         rsiPaneIdx,
@@ -620,7 +621,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           color: rMaColor,
           lineWidth: 1,
           priceLineVisible: false,
-          lastValueVisible: false,
+          lastValueVisible: true,
           priceScaleId: rsiScaleId,
         },
         rsiPaneIdx,
@@ -1121,11 +1122,24 @@ export function PriceChart({ symbol, timeframe }: Props) {
     const c = candlesRef.current;
     if (c.length === 0 || !rsiRef.current) return;
     const cfg = configRef.current;
-    const data = rsi(c, cfg.rsi).map((p) => ({
-      time: p.time as UTCTimestamp,
-      value: p.value,
-    }));
+    const rColor = cfg.rsiColor ?? "#ffffff";
+    const rOversoldColor = "#ef5350"; // Rojo para niveles por debajo de 30
+
+    const data = rsi(c, cfg.rsi).map((p) => {
+      const isOversold = p.value < 30;
+      const lineColor = isOversold ? rOversoldColor : rColor;
+      const topColor = isOversold ? hexToRgba(rOversoldColor, 0.2) : hexToRgba(rColor, 0.12);
+      const bottomColor = isOversold ? hexToRgba(rOversoldColor, 0.0) : hexToRgba(rColor, 0.0);
+      return {
+        time: p.time as UTCTimestamp,
+        value: p.value,
+        lineColor,
+        topColor,
+        bottomColor,
+      };
+    });
     rsiRef.current.setData(data);
+
     if (rsi30Ref.current && data.length > 0)
       rsi30Ref.current.setData([
         { time: data[0].time, value: 30 },
@@ -1160,7 +1174,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
       rsiMaRef.current.applyOptions({ visible: rsiMaType !== "None" && !hidden.rsi });
     }
 
-    setLastValues((prev) => ({ ...prev, rsi: data.at(-1)?.value }));
+    setLastValues((prev) => ({
+      ...prev,
+      rsi: data.at(-1)?.value,
+      rsiMa: rsiMaType !== "None" ? rsiMaData.at(-1)?.value : undefined,
+    }));
   }
 
   function updateMACD() {
@@ -1648,7 +1666,20 @@ export function PriceChart({ symbol, timeframe }: Props) {
           {indicators.rsi && rsiPaneIdx === 0 && (
             <IndicatorPill
               name={`RSI ${config.rsi}`}
-              value={lastValues.rsi !== undefined ? lastValues.rsi.toFixed(2) : undefined}
+              value={
+                lastValues.rsi !== undefined ? (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span style={{ color: config.rsiColor ?? "#ffffff" }}>
+                      {lastValues.rsi.toFixed(2)}
+                    </span>
+                    {lastValues.rsiMa !== undefined && config.rsiMaType !== "None" && (
+                      <span style={{ color: config.rsiMaColor ?? "#26c6da" }}>
+                        {lastValues.rsiMa.toFixed(2)}
+                      </span>
+                    )}
+                  </span>
+                ) : undefined
+              }
               color={INDICATOR_COLORS.rsi}
               hidden={hidden.rsi}
               onToggleHide={() => toggleHidden("rsi")}
@@ -1720,7 +1751,20 @@ export function PriceChart({ symbol, timeframe }: Props) {
             <IndicatorPill
               key="rsi"
               name={`RSI ${config.rsi}`}
-              value={lastValues.rsi !== undefined ? lastValues.rsi.toFixed(2) : undefined}
+              value={
+                lastValues.rsi !== undefined ? (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span style={{ color: config.rsiColor ?? "#ffffff" }}>
+                      {lastValues.rsi.toFixed(2)}
+                    </span>
+                    {lastValues.rsiMa !== undefined && config.rsiMaType !== "None" && (
+                      <span style={{ color: config.rsiMaColor ?? "#26c6da" }}>
+                        {lastValues.rsiMa.toFixed(2)}
+                      </span>
+                    )}
+                  </span>
+                ) : undefined
+              }
               color={INDICATOR_COLORS.rsi}
               hidden={hidden.rsi}
               onToggleHide={() => toggleHidden("rsi")}

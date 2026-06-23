@@ -1,10 +1,11 @@
 "use client";
+import React from "react";
 import { Eye, EyeOff, Settings, X, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
   name: string;
-  value?: string;
+  value?: React.ReactNode;
   color: string;
   hidden: boolean;
   onToggleHide: () => void;
