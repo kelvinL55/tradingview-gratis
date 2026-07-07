@@ -24,6 +24,7 @@ const TITLES: Record<IndicatorKey, string> = {
   volume: "Volumen",
   adx: "DMI / ADX / KEYLEVEL",
   rci: "RCI (Rank Correlation Index)",
+  stoch: "Stoch + EMAs Replica",
 };
 
 export function IndicatorSettingsDialog() {
@@ -124,6 +125,13 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     rciOversold: config.rciOversold ?? -80,
     rciOverboughtColor: config.rciOverboughtColor ?? "#2a2e39",
     rciOversoldColor: config.rciOversoldColor ?? "#2a2e39",
+    stochPeriodK: config.stochPeriodK ?? 14,
+    stochSmoothK: config.stochSmoothK ?? 1,
+    stochPeriodD: config.stochPeriodD ?? 3,
+    stochEma1Len: config.stochEma1Len ?? 55,
+    stochEma2Len: config.stochEma2Len ?? 200,
+    stochKColor: config.stochKColor ?? "#ffffff",
+    stochDColor: config.stochDColor ?? "#ffb74d",
   });
 
   useEffect(() => {
@@ -174,6 +182,13 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       rciOversold: config.rciOversold ?? -80,
       rciOverboughtColor: config.rciOverboughtColor ?? "#2a2e39",
       rciOversoldColor: config.rciOversoldColor ?? "#2a2e39",
+      stochPeriodK: config.stochPeriodK ?? 14,
+      stochSmoothK: config.stochSmoothK ?? 1,
+      stochPeriodD: config.stochPeriodD ?? 3,
+      stochEma1Len: config.stochEma1Len ?? 55,
+      stochEma2Len: config.stochEma2Len ?? 200,
+      stochKColor: config.stochKColor ?? "#ffffff",
+      stochDColor: config.stochDColor ?? "#ffb74d",
     });
     setActiveTab("inputs");
   }, [config, target]);
@@ -237,13 +252,23 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         rciOverboughtColor: draft.rciOverboughtColor,
         rciOversoldColor: draft.rciOversoldColor,
       });
+    else if (target === "stoch")
+      onSave({
+        stochPeriodK: clamp(draft.stochPeriodK, 2, 200),
+        stochSmoothK: clamp(draft.stochSmoothK, 1, 50),
+        stochPeriodD: clamp(draft.stochPeriodD, 1, 50),
+        stochEma1Len: clamp(draft.stochEma1Len, 2, 500),
+        stochEma2Len: clamp(draft.stochEma2Len, 2, 500),
+        stochKColor: draft.stochKColor,
+        stochDColor: draft.stochDColor,
+      });
     else if (target === "volume") onSave({});
   }
 
   return (
     <div className="flex flex-col gap-3 text-tv-text">
       {/* TradingView-like Tabs for RSI / ADX / MACD / RCI to divide Inputs vs Style */}
-      {(target === "rsi" || target === "adx" || target === "macd" || target === "rci") && (
+      {(target === "rsi" || target === "adx" || target === "macd" || target === "rci" || target === "stoch") && (
         <div className="flex border-b border-tv-border -mx-6 px-6 mb-2 text-xs">
           <button
             onClick={() => setActiveTab("inputs")}
@@ -413,6 +438,39 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
                   label="Sobreventa"
                   value={draft.rciOversold}
                   onChange={(n) => setDraft((d) => ({ ...d, rciOversold: n }))}
+                />
+              </div>
+            </div>
+          )}
+          {target === "stoch" && (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-3 gap-2">
+                <Field
+                  label="Longitud %K"
+                  value={draft.stochPeriodK}
+                  onChange={(n) => setDraft((d) => ({ ...d, stochPeriodK: n }))}
+                />
+                <Field
+                  label="Suavizado %K"
+                  value={draft.stochSmoothK}
+                  onChange={(n) => setDraft((d) => ({ ...d, stochSmoothK: n }))}
+                />
+                <Field
+                  label="Suavizado %D"
+                  value={draft.stochPeriodD}
+                  onChange={(n) => setDraft((d) => ({ ...d, stochPeriodD: n }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <Field
+                  label="EMA 1 (referencia)"
+                  value={draft.stochEma1Len}
+                  onChange={(n) => setDraft((d) => ({ ...d, stochEma1Len: n }))}
+                />
+                <Field
+                  label="EMA 2 (referencia)"
+                  value={draft.stochEma2Len}
+                  onChange={(n) => setDraft((d) => ({ ...d, stochEma2Len: n }))}
                 />
               </div>
             </div>
@@ -624,6 +682,21 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
             value={draft.rciOversoldColor}
             onChange={(color) => setDraft((d) => ({ ...d, rciOversoldColor: color }))}
             label="Línea Sobreventa"
+          />
+        </div>
+      )}
+
+      {activeTab === "style" && target === "stoch" && (
+        <div className="flex flex-col gap-4 py-2 border-b border-tv-border/20">
+          <ColorPicker
+            value={draft.stochKColor}
+            onChange={(color) => setDraft((d) => ({ ...d, stochKColor: color }))}
+            label="Línea %K"
+          />
+          <ColorPicker
+            value={draft.stochDColor}
+            onChange={(color) => setDraft((d) => ({ ...d, stochDColor: color }))}
+            label="Línea %D"
           />
         </div>
       )}

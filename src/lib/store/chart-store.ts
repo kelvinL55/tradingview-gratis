@@ -12,7 +12,8 @@ export type IndicatorKey =
   | "macd"
   | "volume"
   | "adx"
-  | "rci";
+  | "rci"
+  | "stoch";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -31,7 +32,7 @@ export interface ChartProfile {
   hidden: Record<IndicatorKey, boolean>;
   config: IndicatorConfig;
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci", string>;
+  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch", string>;
 }
 
 export interface IndicatorConfig {
@@ -84,6 +85,14 @@ export interface IndicatorConfig {
   rciOversold: number;
   rciOverboughtColor: string;
   rciOversoldColor: string;
+  // Stochastic configuration
+  stochPeriodK: number;
+  stochSmoothK: number;
+  stochPeriodD: number;
+  stochEma1Len: number;
+  stochEma2Len: number;
+  stochKColor: string;
+  stochDColor: string;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
@@ -136,6 +145,14 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   rciOversold: -80,
   rciOverboughtColor: "#2a2e39",
   rciOversoldColor: "#2a2e39",
+  // Stochastic defaults
+  stochPeriodK: 14,
+  stochSmoothK: 1,
+  stochPeriodD: 3,
+  stochEma1Len: 55,
+  stochEma2Len: 200,
+  stochKColor: "#ffffff",
+  stochDColor: "#ffb74d",
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -147,6 +164,7 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   volume: "#787b86",
   adx: "#ef5350",
   rci: "#26c6da",
+  stoch: "#ffb74d",
 };
 
 export const DEFAULT_WATCHLIST = [
@@ -173,7 +191,7 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci", string>;
+  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch", string>;
   profiles: Record<string, ChartProfile | null>;
   activeProfileId: string | null;
 
@@ -199,7 +217,7 @@ interface ChartState {
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
   setTimezone: (tz: "UTC" | "Local") => void;
-  moveIndicatorPane: (key: "rsi" | "macd" | "adx" | "rci", targetPane: string) => void;
+  moveIndicatorPane: (key: "rsi" | "macd" | "adx" | "rci" | "stoch", targetPane: string) => void;
   saveProfile: (id: string) => void;
   loadProfile: (id: string) => void;
 }
@@ -218,6 +236,7 @@ export const useChartStore = create<ChartState>()(
         volume: true,
         adx: false,
         rci: false,
+        stoch: false,
       },
       hidden: {
         ema20: false,
@@ -228,6 +247,7 @@ export const useChartStore = create<ChartState>()(
         volume: false,
         adx: false,
         rci: false,
+        stoch: false,
       },
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
@@ -237,6 +257,7 @@ export const useChartStore = create<ChartState>()(
         macd: "macd",
         adx: "adx",
         rci: "rci",
+        stoch: "stoch",
       },
       profiles: {
         "1": null,
@@ -343,7 +364,7 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 5,
+      version: 6,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -414,6 +435,25 @@ export const useChartStore = create<ChartState>()(
             }
             if (state.indicatorPanes && state.indicatorPanes.rci === undefined) {
               state.indicatorPanes = { ...state.indicatorPanes, rci: "rci" };
+            }
+            if (state.config) {
+              state.config = {
+                ...DEFAULT_CONFIG,
+                ...state.config,
+              };
+            }
+          }
+        }
+        if (version < 6) {
+          if (state) {
+            if (state.indicators && state.indicators.stoch === undefined) {
+              state.indicators = { ...state.indicators, stoch: false };
+            }
+            if (state.hidden && state.hidden.stoch === undefined) {
+              state.hidden = { ...state.hidden, stoch: false };
+            }
+            if (state.indicatorPanes && state.indicatorPanes.stoch === undefined) {
+              state.indicatorPanes = { ...state.indicatorPanes, stoch: "stoch" };
             }
             if (state.config) {
               state.config = {

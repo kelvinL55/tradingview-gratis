@@ -250,4 +250,6 @@ function rmaNumbers(values: number[], period: number): number[] {
 }
 
 export { rci } from "./rci";
+export { stochastic } from "./stochastic";
+export type { StochPoint } from "./stochastic";
 

@@ -16,7 +16,7 @@ import {
 } from "lightweight-charts";
 import { fetchKlines } from "@/lib/binance/rest";
 import { getBinanceWS } from "@/lib/binance/ws";
-import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi, rci } from "@/lib/indicators";
+import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi, rci, stochastic } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
   INDICATOR_COLORS,
@@ -140,6 +140,10 @@ interface LastValues {
   rci1?: number;
   rci2?: number;
   rci3?: number;
+  stochK?: number;
+  stochD?: number;
+  stochEma1?: number;
+  stochEma2?: number;
 }
 
 interface PaneOffset {
@@ -191,6 +195,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const rci3Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const rciOverboughtRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rciOversoldRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const stochKRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const stochDRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const stoch20Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const stoch50Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const stoch80Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const candlesRef = useRef<Candle[]>([]);
   const priceLinesMapRef = useRef<Map<string, IPriceLine>>(new Map());
 
@@ -232,8 +241,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
   if (indicators.macd) activePaneIds.add(indicatorPanes.macd);
   if (indicators.adx) activePaneIds.add(indicatorPanes.adx);
   if (indicators.rci) activePaneIds.add(indicatorPanes.rci);
+  if (indicators.stoch) activePaneIds.add(indicatorPanes.stoch);
 
-  const PANE_ORDER = ["main", "rsi", "macd", "adx", "rci"];
+  const PANE_ORDER = ["main", "rsi", "macd", "adx", "rci", "stoch"];
   const visiblePanes = PANE_ORDER.filter((id) => activePaneIds.has(id));
 
   const getPaneIndex = (paneId: string) => {
@@ -245,13 +255,15 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const macdPaneIdx = getPaneIndex(indicatorPanes.macd);
   const adxPaneIdx = getPaneIndex(indicatorPanes.adx);
   const rciPaneIdx = getPaneIndex(indicatorPanes.rci);
+  const stochPaneIdx = getPaneIndex(indicatorPanes.stoch);
 
   const rsiScaleId = indicatorPanes.rsi === "rsi" ? "right" : "left";
   const macdScaleId = indicatorPanes.macd === "macd" ? "right" : "left";
   const adxScaleId = indicatorPanes.adx === "adx" ? "right" : "left";
   const rciScaleId = indicatorPanes.rci === "rci" ? "right" : "left";
+  const stochScaleId = indicatorPanes.stoch === "stoch" ? "right" : "left";
 
-  const handleMovePane = (key: "rsi" | "macd" | "adx" | "rci", direction: "up" | "down") => {
+  const handleMovePane = (key: "rsi" | "macd" | "adx" | "rci" | "stoch", direction: "up" | "down") => {
     const currentPane = indicatorPanes[key];
     const idx = PANE_ORDER.indexOf(currentPane);
     if (idx === -1) return;
@@ -529,6 +541,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
       plusDIRef.current = null;
       minusDIRef.current = null;
       adxKeyLevelRef.current = null;
+      stochKRef.current = null;
+      stochDRef.current = null;
+      stoch20Ref.current = null;
+      stoch50Ref.current = null;
+      stoch80Ref.current = null;
     };
   }, []);
 
@@ -947,6 +964,101 @@ export function PriceChart({ symbol, timeframe }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators.rci, rciPaneIdx, rciScaleId]);
 
+  // Stochastic pane
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (indicators.stoch && !stochKRef.current) {
+      const kColor = configRef.current.stochKColor ?? "#ffffff";
+      const dColor = configRef.current.stochDColor ?? "#ffb74d";
+
+      const kSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: kColor,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const dSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: dColor,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const s80 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "#ffb74d",
+          lineWidth: 1,
+          lineStyle: 0, // solid
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const s20 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "#ffb74d",
+          lineWidth: 1,
+          lineStyle: 0, // solid
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const s50 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: `${TV_COLORS.textMuted}80`,
+          lineWidth: 1,
+          lineStyle: 2, // dotted
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+
+      stochKRef.current = kSeries;
+      stochDRef.current = dSeries;
+      stoch80Ref.current = s80;
+      stoch20Ref.current = s20;
+      stoch50Ref.current = s50;
+
+      try {
+        if (stochPaneIdx > 0) {
+          chartRef.current.panes()[stochPaneIdx]?.setStretchFactor(1);
+        }
+        chartRef.current.panes()[0]?.setStretchFactor(3);
+      } catch {}
+      updateStoch();
+    } else if (!indicators.stoch && stochKRef.current && chartRef.current) {
+      chartRef.current.removeSeries(stochKRef.current);
+      if (stochDRef.current) chartRef.current.removeSeries(stochDRef.current);
+      if (stoch80Ref.current) chartRef.current.removeSeries(stoch80Ref.current);
+      if (stoch20Ref.current) chartRef.current.removeSeries(stoch20Ref.current);
+      if (stoch50Ref.current) chartRef.current.removeSeries(stoch50Ref.current);
+      stochKRef.current = null;
+      stochDRef.current = null;
+      stoch80Ref.current = null;
+      stoch20Ref.current = null;
+      stoch50Ref.current = null;
+    }
+    requestAnimationFrame(() => recomputePaneOffsets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.stoch, stochPaneIdx, stochScaleId]);
+
   // Recompute offsets when indicator visibility or pane assignment changes
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -983,6 +1095,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (rci3Ref.current) rci3Ref.current.applyOptions({ visible: v("rci") && (config.rciShow3 ?? false) });
     if (rciOverboughtRef.current) rciOverboughtRef.current.applyOptions({ visible: v("rci") });
     if (rciOversoldRef.current) rciOversoldRef.current.applyOptions({ visible: v("rci") });
+
+    if (stochKRef.current) stochKRef.current.applyOptions({ visible: v("stoch") });
+    if (stochDRef.current) stochDRef.current.applyOptions({ visible: v("stoch") });
+    if (stoch80Ref.current) stoch80Ref.current.applyOptions({ visible: v("stoch") });
+    if (stoch20Ref.current) stoch20Ref.current.applyOptions({ visible: v("stoch") });
+    if (stoch50Ref.current) stoch50Ref.current.applyOptions({ visible: v("stoch") });
 
     if (volumeSeriesRef.current) volumeSeriesRef.current.applyOptions({ visible: v("volume") });
   }, [
@@ -1082,6 +1200,15 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (rciOverboughtRef.current) rciOverboughtRef.current.applyOptions({ color: config.rciOverboughtColor });
     if (rciOversoldRef.current) rciOversoldRef.current.applyOptions({ color: config.rciOversoldColor });
   }, [config.rciColor1, config.rciColor2, config.rciColor3, config.rciOverboughtColor, config.rciOversoldColor]);
+
+  useEffect(() => {
+    updateStoch();
+  }, [config.stochPeriodK, config.stochSmoothK, config.stochPeriodD, config.stochEma1Len, config.stochEma2Len]);
+
+  useEffect(() => {
+    if (stochKRef.current) stochKRef.current.applyOptions({ color: config.stochKColor });
+    if (stochDRef.current) stochDRef.current.applyOptions({ color: config.stochDColor });
+  }, [config.stochKColor, config.stochDColor]);
 
   // Sync price lines from store to the candle series
   useEffect(() => {
@@ -1359,6 +1486,55 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }));
   }
 
+  function updateStoch() {
+    const c = candlesRef.current;
+    if (c.length === 0 || !stochKRef.current) return;
+    const cfg = configRef.current;
+    const data = stochastic(c, cfg.stochPeriodK, cfg.stochSmoothK, cfg.stochPeriodD);
+
+    if (data.length === 0) return;
+
+    stochKRef.current.setData(
+      data.map((p) => ({ time: p.time as UTCTimestamp, value: p.k })),
+    );
+    stochDRef.current?.setData(
+      data.map((p) => ({ time: p.time as UTCTimestamp, value: p.d })),
+    );
+
+    // Horizontal level lines (80, 20, 50)
+    if (stoch80Ref.current && data.length > 0) {
+      stoch80Ref.current.setData([
+        { time: data[0].time as UTCTimestamp, value: 80 },
+        { time: data[data.length - 1].time as UTCTimestamp, value: 80 },
+      ]);
+    }
+    if (stoch20Ref.current && data.length > 0) {
+      stoch20Ref.current.setData([
+        { time: data[0].time as UTCTimestamp, value: 20 },
+        { time: data[data.length - 1].time as UTCTimestamp, value: 20 },
+      ]);
+    }
+    if (stoch50Ref.current && data.length > 0) {
+      stoch50Ref.current.setData([
+        { time: data[0].time as UTCTimestamp, value: 50 },
+        { time: data[data.length - 1].time as UTCTimestamp, value: 50 },
+      ]);
+    }
+
+    // Reference EMAs (displayed as values in the pill, not as lines)
+    const ema1Data = ema(c, cfg.stochEma1Len);
+    const ema2Data = ema(c, cfg.stochEma2Len);
+
+    const last = data.at(-1);
+    setLastValues((prev) => ({
+      ...prev,
+      stochK: last?.k,
+      stochD: last?.d,
+      stochEma1: ema1Data.at(-1)?.value,
+      stochEma2: ema2Data.at(-1)?.value,
+    }));
+  }
+
   // Load historical data + subscribe live
   useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -1399,6 +1575,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         updateMACD();
         updateADX();
         updateRCI();
+        updateStoch();
 
         // Smart auto-fit: show a tailored number of recent bars so the chart
         // looks well-proportioned regardless of timeframe or symbol.
@@ -1415,6 +1592,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           macdRef.current?.priceScale().applyOptions({ autoScale: true });
           adxRef.current?.priceScale().applyOptions({ autoScale: true });
           rci1Ref.current?.priceScale().applyOptions({ autoScale: true });
+          stochKRef.current?.priceScale().applyOptions({ autoScale: true });
         }
         requestAnimationFrame(() => recomputePaneOffsets());
 
@@ -1462,6 +1640,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             updateMACD();
             updateADX();
             updateRCI();
+            updateStoch();
             const prev = arr[arr.length - 2] ?? lastCandle;
             setLastPrice({
               value: k.close,
@@ -1772,6 +1951,39 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onMoveDown={() => handleMovePane("rci", "down")}
             />
           )}
+          {indicators.stoch && stochPaneIdx === 0 && (
+            <IndicatorPill
+              name={`Stoch ${config.stochPeriodK}, ${config.stochSmoothK}, ${config.stochPeriodD}`}
+              value={
+                lastValues.stochK !== undefined ? (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span style={{ color: config.stochKColor ?? "#ffffff" }}>
+                      %K {lastValues.stochK.toFixed(2)}
+                    </span>
+                    <span style={{ color: config.stochDColor ?? "#ffb74d" }}>
+                      %D {(lastValues.stochD ?? 0).toFixed(2)}
+                    </span>
+                    {lastValues.stochEma1 !== undefined && (
+                      <span className="text-tv-text-muted">
+                        EMA{config.stochEma1Len} {formatPrice(lastValues.stochEma1)}
+                      </span>
+                    )}
+                    {lastValues.stochEma2 !== undefined && (
+                      <span className="text-tv-text-muted">
+                        EMA{config.stochEma2Len} {formatPrice(lastValues.stochEma2)}
+                      </span>
+                    )}
+                  </span>
+                ) : undefined
+              }
+              color={INDICATOR_COLORS.stoch}
+              hidden={hidden.stoch}
+              onToggleHide={() => toggleHidden("stoch")}
+              onSettings={() => setSettingsTarget("stoch")}
+              onRemove={() => removeIndicator("stoch")}
+              onMoveDown={() => handleMovePane("stoch", "down")}
+            />
+          )}
         </div>
       </div>
 
@@ -1874,6 +2086,45 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rci")}
               onMoveUp={currentPane !== "main" ? () => handleMovePane("rci", "up") : undefined}
               onMoveDown={currentPane !== "rci" ? () => handleMovePane("rci", "down") : undefined}
+            />
+          );
+        }
+
+        if (indicators.stoch && stochPaneIdx === paneIdx) {
+          const currentPane = indicatorPanes.stoch;
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="stoch"
+              name={`Stoch ${config.stochPeriodK}, ${config.stochSmoothK}, ${config.stochPeriodD}`}
+              value={
+                lastValues.stochK !== undefined ? (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span style={{ color: config.stochKColor ?? "#ffffff" }}>
+                      %K {lastValues.stochK.toFixed(2)}
+                    </span>
+                    <span style={{ color: config.stochDColor ?? "#ffb74d" }}>
+                      %D {(lastValues.stochD ?? 0).toFixed(2)}
+                    </span>
+                    {lastValues.stochEma1 !== undefined && (
+                      <span className="text-tv-text-muted">
+                        EMA{config.stochEma1Len} {formatPrice(lastValues.stochEma1)}
+                      </span>
+                    )}
+                    {lastValues.stochEma2 !== undefined && (
+                      <span className="text-tv-text-muted">
+                        EMA{config.stochEma2Len} {formatPrice(lastValues.stochEma2)}
+                      </span>
+                    )}
+                  </span>
+                ) : undefined
+              }
+              color={INDICATOR_COLORS.stoch}
+              hidden={hidden.stoch}
+              onToggleHide={() => toggleHidden("stoch")}
+              onSettings={() => setSettingsTarget("stoch")}
+              onRemove={() => removeIndicator("stoch")}
+              onMoveUp={currentPane !== "main" ? () => handleMovePane("stoch", "up") : undefined}
+              onMoveDown={currentPane !== "stoch" ? () => handleMovePane("stoch", "down") : undefined}
             />
           );
         }

@@ -39,6 +39,11 @@ const ENTRIES: Entry[] = [
     group: "Osciladores",
     label: (c) => `RCI (${c.rciLength1}, ${c.rciLength2}, ${c.rciLength3})`,
   },
+  {
+    key: "stoch",
+    group: "Osciladores",
+    label: (c) => `Stoch (${c.stochPeriodK}, ${c.stochSmoothK}, ${c.stochPeriodD})`,
+  },
 ];
 
 export function IndicatorMenu() {
