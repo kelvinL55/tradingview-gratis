@@ -1,6 +1,6 @@
 "use client";
-import React from "react";
-import { Eye, EyeOff, Settings, X, ChevronUp, ChevronDown } from "lucide-react";
+import React, { useState } from "react";
+import { Eye, EyeOff, Settings, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -30,10 +30,12 @@ export function IndicatorPill({
   order,
   onChangeOrder,
 }: Props) {
+  const [minimized, setMinimized] = useState(false);
+
   return (
     <div
       className={cn(
-        "group/pill pointer-events-auto flex items-center gap-1.5 rounded bg-tv-panel/95 px-1.5 py-0.5 text-[11px] shadow-sm ring-1 ring-tv-border backdrop-blur",
+        "group/pill pointer-events-auto flex items-center gap-1.5 rounded bg-tv-panel/95 px-1.5 py-0.5 text-[11px] shadow-sm ring-1 ring-tv-border backdrop-blur transition-all duration-150",
         hidden && "opacity-50",
       )}
     >
@@ -55,58 +57,77 @@ export function IndicatorPill({
         className="h-1.5 w-1.5 shrink-0 rounded-full"
         style={{ background: color }}
       />
-      <span className="font-medium text-tv-text">{name}</span>
-      {value !== undefined && (
+      <span className="font-medium text-tv-text whitespace-nowrap">{name}</span>
+      
+      {!minimized && value !== undefined && (
         <span className="tabular-nums text-tv-text-muted">{value}</span>
       )}
+
       <div className="ml-1 flex items-center gap-0.5">
-        {onMoveUp && (
-          <button
-            onClick={onMoveUp}
-            title="Subir panel (sobreponer)"
-            aria-label="Subir panel"
-            className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </button>
+        {!minimized && (
+          <>
+            {onMoveUp && (
+              <button
+                onClick={onMoveUp}
+                title="Subir panel (sobreponer)"
+                aria-label="Subir panel"
+                className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {onMoveDown && (
+              <button
+                onClick={onMoveDown}
+                title="Bajar panel"
+                aria-label="Bajar panel"
+                className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              onClick={onToggleHide}
+              title={hidden ? "Mostrar" : "Ocultar"}
+              aria-label={hidden ? "Mostrar" : "Ocultar"}
+              className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+            >
+              {hidden ? (
+                <EyeOff className="h-3 w-3" />
+              ) : (
+                <Eye className="h-3 w-3" />
+              )}
+            </button>
+            <button
+              onClick={onSettings}
+              title="Configurar"
+              aria-label="Configurar"
+              className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+            >
+              <Settings className="h-3 w-3" />
+            </button>
+            <button
+              onClick={onRemove}
+              title="Eliminar"
+              aria-label="Eliminar"
+              className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-red"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </>
         )}
-        {onMoveDown && (
-          <button
-            onClick={onMoveDown}
-            title="Bajar panel"
-            aria-label="Bajar panel"
-            className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-        )}
+
         <button
-          onClick={onToggleHide}
-          title={hidden ? "Mostrar" : "Ocultar"}
-          aria-label={hidden ? "Mostrar" : "Ocultar"}
-          className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
+          onClick={() => setMinimized(!minimized)}
+          title={minimized ? "Maximizar panel de control" : "Minimizar panel de control"}
+          aria-label={minimized ? "Maximizar" : "Minimizar"}
+          className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text border-l border-tv-border/40 pl-1 ml-0.5"
         >
-          {hidden ? (
-            <EyeOff className="h-3 w-3" />
+          {minimized ? (
+            <ChevronRight className="h-3 w-3" />
           ) : (
-            <Eye className="h-3 w-3" />
+            <ChevronLeft className="h-3 w-3" />
           )}
-        </button>
-        <button
-          onClick={onSettings}
-          title="Configurar"
-          aria-label="Configurar"
-          className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text"
-        >
-          <Settings className="h-3 w-3" />
-        </button>
-        <button
-          onClick={onRemove}
-          title="Eliminar"
-          aria-label="Eliminar"
-          className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-red"
-        >
-          <X className="h-3 w-3" />
         </button>
       </div>
     </div>
