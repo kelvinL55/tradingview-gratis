@@ -84,8 +84,31 @@ export function LeftSidebar() {
   const selectSubToolHandler = (name: string) => {
     setSelectedSubTool(name);
     setMenuOpen(false);
-    // Habilitar simulación de herramienta
-    setTool("cursor");
+    switch (name) {
+      case "Resaltador":
+        setTool("highlighter");
+        break;
+      case "Rectángulo":
+      case "Rectángulo rotado":
+        setTool("rectangle");
+        break;
+      case "Círculo":
+      case "Elipse":
+        setTool("circle");
+        break;
+      case "Flecha":
+      case "Marcador de flecha":
+      case "Marca de flecha hacia arriba":
+      case "Marca de flecha hacia abajo":
+        setTool("arrow");
+        break;
+      case "Triángulo":
+        setTool("triangle");
+        break;
+      default:
+        setTool("brush");
+        break;
+    }
   };
 
   const getSubToolIcon = () => {
@@ -147,6 +170,8 @@ export function LeftSidebar() {
             "flex h-8 w-8 items-center justify-center rounded transition-colors hover:bg-tv-panel-hover relative",
             menuOpen
               ? "bg-tv-blue text-white"
+              : ["brush", "highlighter", "rectangle", "circle", "arrow", "triangle"].includes(tool)
+              ? "bg-tv-blue/15 text-tv-blue"
               : "text-tv-text-muted hover:text-tv-text"
           )}
         >

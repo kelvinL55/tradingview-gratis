@@ -15,7 +15,17 @@ export type IndicatorKey =
   | "stoch"
   | "sqzmom";
 
-export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
+export type DrawingTool =
+  | "cursor"
+  | "hline"
+  | "measure"
+  | "eraser"
+  | "brush"
+  | "highlighter"
+  | "rectangle"
+  | "circle"
+  | "arrow"
+  | "triangle";
 
 export interface PriceLine {
   id: string;

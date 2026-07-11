@@ -26,6 +26,7 @@ import {
 import { formatPrice, formatVolume } from "@/lib/format";
 import { IndicatorPill } from "./IndicatorPill";
 import { MeasureOverlay } from "./MeasureOverlay";
+import { cn } from "@/lib/utils";
 
 interface MeasurePoint {
   time: number;
@@ -198,6 +199,24 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const sqzmomHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const sqzmomSqzRef = useRef<ISeriesApi<"Line"> | null>(null);
   const candlesRef = useRef<Candle[]>([]);
+
+  // Drawing tools state and refs
+  const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [drawings, setDrawings] = useState<{
+    id: string;
+    type: "brush" | "highlighter" | "rectangle" | "circle" | "arrow" | "triangle";
+    points: { time: number; price: number }[];
+    color: string;
+    lineWidth: number;
+  }[]>([]);
+  const isDrawingRef = useRef(false);
+  const currentDrawingRef = useRef<{
+    id: string;
+    type: "brush" | "highlighter" | "rectangle" | "circle" | "arrow" | "triangle";
+    points: { time: number; price: number }[];
+    color: string;
+    lineWidth: number;
+  } | null>(null);
   const priceLinesMapRef = useRef<Map<string, IPriceLine>>(new Map());
 
   const indicators = useChartStore((s) => s.indicators);
@@ -252,11 +271,27 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const stochPaneIdx = indicators.stoch ? getPaneIndexForNum(indicatorPanes.stoch) : 0;
   const sqzmomPaneIdx = indicators.sqzmom ? getPaneIndexForNum(indicatorPanes.sqzmom) : 0;
 
-  const rsiScaleId = "right";
-  const adxScaleId = "right";
-  const rciScaleId = "right";
-  const stochScaleId = "right";
-  const sqzmomScaleId = "right";
+  // Escala izquierda o derecha según si hay indicadores superpuestos en el mismo panel
+  const getScaleId = (key: "rsi" | "adx" | "rci" | "stoch" | "sqzmom") => {
+    if (!indicators[key]) return "right";
+    const paneNum = indicatorPanes[key];
+    const siblings: ("rsi" | "adx" | "rci" | "stoch" | "sqzmom")[] = [];
+    if (indicators.rsi && indicatorPanes.rsi === paneNum) siblings.push("rsi");
+    if (indicators.adx && indicatorPanes.adx === paneNum) siblings.push("adx");
+    if (indicators.rci && indicatorPanes.rci === paneNum) siblings.push("rci");
+    if (indicators.stoch && indicatorPanes.stoch === paneNum) siblings.push("stoch");
+    if (indicators.sqzmom && indicatorPanes.sqzmom === paneNum) siblings.push("sqzmom");
+
+    const idx = siblings.indexOf(key);
+    // El primero usa "right", el segundo usa "left", los siguientes comparten "right"
+    return idx === 1 ? "left" : "right";
+  };
+
+  const rsiScaleId = getScaleId("rsi");
+  const adxScaleId = getScaleId("adx");
+  const rciScaleId = getScaleId("rci");
+  const stochScaleId = getScaleId("stoch");
+  const sqzmomScaleId = getScaleId("sqzmom");
   const measureRef = useRef(measure);
   measureRef.current = measure;
   const timeframeRef = useRef(timeframe);
@@ -736,12 +771,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
           color: aColor,
           lineWidth: 2,
           priceLineVisible: false,
-          lastValueVisible: false,
+          lastValueVisible: true,
           priceScaleId: adxScaleId,
         },
         adxPaneIdx,
       );
-
       const plusDISeries = chartRef.current.addSeries(
         LineSeries,
         {
@@ -753,7 +787,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
         },
         adxPaneIdx,
       );
-
       const minusDISeries = chartRef.current.addSeries(
         LineSeries,
         {
@@ -765,13 +798,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
         },
         adxPaneIdx,
       );
-
       const adxKeyLevelSeries = chartRef.current.addSeries(
         LineSeries,
         {
           color: configRef.current.adxKeyLevelColor ?? "#ffffff",
           lineWidth: 1,
-          lineStyle: 2, // Discontinua
+          lineStyle: 2,
           priceLineVisible: false,
           lastValueVisible: false,
           priceScaleId: adxScaleId,
@@ -803,7 +835,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.adx, adxPaneIdx, adxScaleId]);
+  }, [indicators.adx, adxPaneIdx, adxScaleId, indicatorPanes.adx]);
 
   // RCI pane
   useEffect(() => {
@@ -1042,7 +1074,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.sqzmom, sqzmomPaneIdx, sqzmomScaleId]);
+  }, [indicators.sqzmom, sqzmomPaneIdx, sqzmomScaleId, indicatorPanes.sqzmom]);
 
   // Recompute offsets when indicator visibility or pane assignment changes
   useEffect(() => {
@@ -1788,9 +1820,225 @@ export function PriceChart({ symbol, timeframe }: Props) {
     });
   }, [timezone]);
 
+  // Clear drawings when price lines are cleared
+  useEffect(() => {
+    const linesForThisSymbol = priceLines.filter((p) => p.symbol === symbol);
+    if (linesForThisSymbol.length === 0) {
+      setDrawings([]);
+    }
+  }, [priceLines, symbol]);
+
+  // Mouse event handlers for the canvas drawing layer
+  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
+    const coords = getCanvasCoords(e);
+    if (!coords || !chartRef.current || !candleSeriesRef.current) return;
+
+    const time = chartRef.current.timeScale().coordinateToTime(coords.x) as number;
+    const price = candleSeriesRef.current.coordinateToPrice(coords.y);
+    if (time === null || price === null) return;
+
+    isDrawingRef.current = true;
+    let strokeColor = "#2196f3"; // Blue
+    let strokeWidth = 2;
+
+    if (tool === "highlighter") {
+      strokeColor = "#ffd54f"; // Yellow
+      strokeWidth = 10;
+    }
+
+    const newItem = {
+      id: Math.random().toString(36).substring(7),
+      type: tool as any,
+      points: [{ time, price }],
+      color: strokeColor,
+      lineWidth: strokeWidth,
+    };
+
+    currentDrawingRef.current = newItem;
+    setRenderTick((t) => t + 1);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current || !currentDrawingRef.current || !chartRef.current || !candleSeriesRef.current) return;
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+
+    const time = chartRef.current.timeScale().coordinateToTime(coords.x) as number;
+    const price = candleSeriesRef.current.coordinateToPrice(coords.y);
+    if (time === null || price === null) return;
+
+    const cur = currentDrawingRef.current;
+    if (["brush", "highlighter"].includes(cur.type)) {
+      cur.points.push({ time, price });
+    } else {
+      if (cur.points.length === 1) {
+        cur.points.push({ time, price });
+      } else {
+        cur.points[1] = { time, price };
+      }
+    }
+    setRenderTick((t) => t + 1);
+  };
+
+  const handleMouseUp = () => {
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
+    if (currentDrawingRef.current) {
+      const cur = currentDrawingRef.current;
+      if (cur.points.length > 1 || cur.type === "brush" || cur.type === "highlighter") {
+        setDrawings((prev) => [...prev, cur]);
+      }
+    }
+    currentDrawingRef.current = null;
+    setRenderTick((t) => t + 1);
+  };
+
+  // Sync canvas dimensions and redraw loop
+  useEffect(() => {
+    const canvas = drawingCanvasRef.current;
+    if (!canvas || !chartRef.current || !candleSeriesRef.current) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const chart = chartRef.current;
+    const candleSeries = candleSeriesRef.current;
+
+    const drawOne = (item: any) => {
+      if (item.points.length === 0) return;
+      ctx.strokeStyle = item.color;
+      ctx.lineWidth = item.lineWidth;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      if (item.type === "brush" || item.type === "highlighter") {
+        ctx.beginPath();
+        let first = true;
+        for (const pt of item.points) {
+          const x = chart.timeScale().timeToCoordinate(pt.time as any);
+          const y = candleSeries.priceToCoordinate(pt.price);
+          if (x !== null && y !== null) {
+            if (first) {
+              ctx.moveTo(x, y);
+              first = false;
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+        }
+        ctx.stroke();
+      } else if (item.type === "rectangle" && item.points.length >= 2) {
+        const p1 = item.points[0];
+        const p2 = item.points[1];
+        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const y1 = candleSeries.priceToCoordinate(p1.price);
+        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const y2 = candleSeries.priceToCoordinate(p2.price);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+           ctx.beginPath();
+           ctx.rect(x1, y1, x2 - x1, y2 - y1);
+           ctx.fillStyle = hexToRgba(item.color, item.type === "highlighter" ? 0.35 : 0.15);
+           ctx.fill();
+           ctx.stroke();
+        }
+      } else if (item.type === "circle" && item.points.length >= 2) {
+        const p1 = item.points[0];
+        const p2 = item.points[1];
+        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const y1 = candleSeries.priceToCoordinate(p1.price);
+        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const y2 = candleSeries.priceToCoordinate(p2.price);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+           const rx = Math.abs(x2 - x1);
+           const ry = Math.abs(y2 - y1);
+           ctx.beginPath();
+           ctx.ellipse(x1, y1, rx, ry, 0, 0, 2 * Math.PI);
+           ctx.fillStyle = hexToRgba(item.color, 0.15);
+           ctx.fill();
+           ctx.stroke();
+        }
+      } else if (item.type === "arrow" && item.points.length >= 2) {
+        const p1 = item.points[0];
+        const p2 = item.points[1];
+        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const y1 = candleSeries.priceToCoordinate(p1.price);
+        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const y2 = candleSeries.priceToCoordinate(p2.price);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+           ctx.beginPath();
+           ctx.moveTo(x1, y1);
+           ctx.lineTo(x2, y2);
+           ctx.stroke();
+
+           const angle = Math.atan2(y2 - y1, x2 - x1);
+           ctx.beginPath();
+           ctx.moveTo(x2, y2);
+           ctx.lineTo(x2 - 10 * Math.cos(angle - Math.PI / 6), y2 - 10 * Math.sin(angle - Math.PI / 6));
+           ctx.lineTo(x2 - 10 * Math.cos(angle + Math.PI / 6), y2 - 10 * Math.sin(angle + Math.PI / 6));
+           ctx.closePath();
+           ctx.fillStyle = item.color;
+           ctx.fill();
+        }
+      } else if (item.type === "triangle" && item.points.length >= 2) {
+        const p1 = item.points[0];
+        const p2 = item.points[1];
+        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const y1 = candleSeries.priceToCoordinate(p1.price);
+        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const y2 = candleSeries.priceToCoordinate(p2.price);
+        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+           ctx.beginPath();
+           ctx.moveTo(x1, y1);
+           ctx.lineTo(x2, y2);
+           ctx.lineTo(x1 - (x2 - x1), y2);
+           ctx.closePath();
+           ctx.fillStyle = hexToRgba(item.color, 0.15);
+           ctx.fill();
+           ctx.stroke();
+        }
+      }
+    };
+
+    drawings.forEach(drawOne);
+    if (currentDrawingRef.current) {
+      drawOne(currentDrawingRef.current);
+    }
+  }, [drawings, renderTick]);
+
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      
+      {/* Absolute canvas layer for brush drawings and shapes */}
+      <canvas
+        ref={drawingCanvasRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        className={cn(
+          "absolute inset-0 z-20 h-full w-full",
+          ["brush", "highlighter", "rectangle", "circle", "arrow", "triangle"].includes(tool)
+            ? "pointer-events-auto cursor-crosshair"
+            : "pointer-events-none"
+        )}
+      />
+
       {measureRender}
 
       {/* Custom extrapolated time label — shows when cursor is past last candle */}
