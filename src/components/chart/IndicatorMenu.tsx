@@ -24,11 +24,7 @@ const ENTRIES: Entry[] = [
   { key: "ema200", group: "Medias móviles", label: (c) => `EMA ${c.ema200}` },
   { key: "volume", group: "Volumen", label: () => "Volumen" },
   { key: "rsi", group: "Osciladores", label: (c) => `RSI (${c.rsi})` },
-  {
-    key: "macd",
-    group: "Osciladores",
-    label: (c) => `MACD (${c.macdFast}, ${c.macdSlow}, ${c.macdSignal})`,
-  },
+
   {
     key: "adx",
     group: "Osciladores",

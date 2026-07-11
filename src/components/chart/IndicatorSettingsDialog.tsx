@@ -20,7 +20,6 @@ const TITLES: Record<IndicatorKey, string> = {
   ema50: "EMA — Slot 2",
   ema200: "EMA — Slot 3",
   rsi: "RSI",
-  macd: "MACD",
   volume: "Volumen",
   adx: "DMI / ADX / KEYLEVEL",
   rci: "RCI (Rank Correlation Index)",
@@ -88,20 +87,6 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     rsiMaType: config.rsiMaType ?? "SMA",
     rsiColor: config.rsiColor ?? "#7e57c2",
     rsiMaColor: config.rsiMaColor ?? "#ffb74d",
-    macdFast: config.macdFast,
-    macdSlow: config.macdSlow,
-    macdSignal: config.macdSignal,
-    macdShowMACD: config.macdShowMACD ?? true,
-    macdShowSignal: config.macdShowSignal ?? true,
-    macdShowHist: config.macdShowHist ?? true,
-    macdShowMountain: config.macdShowMountain ?? false,
-    macdMountainOpacity: config.macdMountainOpacity ?? 0.1,
-    macdColor: config.macdColor ?? "#2962ff",
-    macdSignalColor: config.macdSignalColor ?? "#ffb74d",
-    macdBullishStrongColor: config.macdBullishStrongColor ?? "#26a69a",
-    macdBullishWeakColor: config.macdBullishWeakColor ?? "#1e6a5f",
-    macdBearishStrongColor: config.macdBearishStrongColor ?? "#ef5350",
-    macdBearishWeakColor: config.macdBearishWeakColor ?? "#953432",
     adxLength: config.adxLength ?? 14,
     dmiLength: config.dmiLength ?? 14,
     adxKeyLevel: config.adxKeyLevel ?? 23,
@@ -159,20 +144,6 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       rsiMaType: config.rsiMaType ?? "SMA",
       rsiColor: config.rsiColor ?? "#7e57c2",
       rsiMaColor: config.rsiMaColor ?? "#ffb74d",
-      macdFast: config.macdFast,
-      macdSlow: config.macdSlow,
-      macdSignal: config.macdSignal,
-      macdShowMACD: config.macdShowMACD ?? true,
-      macdShowSignal: config.macdShowSignal ?? true,
-      macdShowHist: config.macdShowHist ?? true,
-      macdShowMountain: config.macdShowMountain ?? false,
-      macdMountainOpacity: config.macdMountainOpacity ?? 0.1,
-      macdColor: config.macdColor ?? "#2962ff",
-      macdSignalColor: config.macdSignalColor ?? "#ffb74d",
-      macdBullishStrongColor: config.macdBullishStrongColor ?? "#26a69a",
-      macdBullishWeakColor: config.macdBullishWeakColor ?? "#1e6a5f",
-      macdBearishStrongColor: config.macdBearishStrongColor ?? "#ef5350",
-      macdBearishWeakColor: config.macdBearishWeakColor ?? "#953432",
       adxLength: config.adxLength ?? 14,
       dmiLength: config.dmiLength ?? 14,
       adxKeyLevel: config.adxKeyLevel ?? 23,
@@ -234,23 +205,7 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         rsiColor: draft.rsiColor,
         rsiMaColor: draft.rsiMaColor,
       });
-    else if (target === "macd")
-      onSave({
-        macdFast: clamp(draft.macdFast, 2, 100),
-        macdSlow: clamp(draft.macdSlow, 2, 200),
-        macdSignal: clamp(draft.macdSignal, 2, 100),
-        macdShowMACD: draft.macdShowMACD,
-        macdShowSignal: draft.macdShowSignal,
-        macdShowHist: draft.macdShowHist,
-        macdShowMountain: draft.macdShowMountain,
-        macdMountainOpacity: clamp(draft.macdMountainOpacity, 0, 1),
-        macdColor: draft.macdColor,
-        macdSignalColor: draft.macdSignalColor,
-        macdBullishStrongColor: draft.macdBullishStrongColor,
-        macdBullishWeakColor: draft.macdBullishWeakColor,
-        macdBearishStrongColor: draft.macdBearishStrongColor,
-        macdBearishWeakColor: draft.macdBearishWeakColor,
-      });
+
     else if (target === "adx")
       onSave({
         adxLength: clamp(draft.adxLength, 2, 100),
@@ -314,7 +269,7 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   return (
     <div className="flex flex-col gap-3 text-tv-text">
       {/* TradingView-like Tabs for RSI / ADX / MACD / RCI to divide Inputs vs Style */}
-      {(target === "rsi" || target === "adx" || target === "macd" || target === "rci" || target === "stoch" || target === "sqzmom") && (
+      {(target === "rsi" || target === "adx" || target === "rci" || target === "stoch" || target === "sqzmom") && (
         <div className="flex border-b border-tv-border -mx-6 px-6 mb-2 text-xs">
           <button
             onClick={() => setActiveTab("inputs")}
@@ -384,25 +339,7 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
               )}
             </div>
           )}
-          {target === "macd" && (
-            <div className="grid grid-cols-3 gap-2">
-              <Field
-                label="Rápida"
-                value={draft.macdFast}
-                onChange={(n) => setDraft((d) => ({ ...d, macdFast: n }))}
-              />
-              <Field
-                label="Lenta"
-                value={draft.macdSlow}
-                onChange={(n) => setDraft((d) => ({ ...d, macdSlow: n }))}
-              />
-              <Field
-                label="Señal"
-                value={draft.macdSignal}
-                onChange={(n) => setDraft((d) => ({ ...d, macdSignal: n }))}
-              />
-            </div>
-          )}
+
           {target === "adx" && (
             <div className="flex flex-col gap-3">
               <Field
@@ -583,92 +520,7 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         </div>
       )}
 
-      {activeTab === "style" && target === "macd" && (
-        <div className="flex flex-col gap-3 py-2 border-b border-tv-border/20 max-h-[250px] overflow-y-auto pr-1">
-          <div className="flex items-center justify-between">
-            <CheckboxField
-              label="Mostrar MACD"
-              checked={draft.macdShowMACD}
-              onChange={(b) => setDraft((d) => ({ ...d, macdShowMACD: b }))}
-            />
-            {draft.macdShowMACD && (
-              <ColorPicker
-                value={draft.macdColor}
-                onChange={(color) => setDraft((d) => ({ ...d, macdColor: color }))}
-                label=""
-              />
-            )}
-          </div>
-          <div className="flex items-center justify-between">
-            <CheckboxField
-              label="Mostrar Señal"
-              checked={draft.macdShowSignal}
-              onChange={(b) => setDraft((d) => ({ ...d, macdShowSignal: b }))}
-            />
-            {draft.macdShowSignal && (
-              <ColorPicker
-                value={draft.macdSignalColor}
-                onChange={(color) => setDraft((d) => ({ ...d, macdSignalColor: color }))}
-                label=""
-              />
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5 border-t border-tv-border/40 pt-2">
-            <CheckboxField
-              label="Mostrar Histograma"
-              checked={draft.macdShowHist}
-              onChange={(b) => setDraft((d) => ({ ...d, macdShowHist: b }))}
-            />
-            {draft.macdShowHist && (
-              <div className="grid grid-cols-2 gap-2 pl-4 pt-1">
-                <ColorPicker
-                  value={draft.macdBullishStrongColor}
-                  onChange={(color) => setDraft((d) => ({ ...d, macdBullishStrongColor: color }))}
-                  label="Alcista Fuerte"
-                />
-                <ColorPicker
-                  value={draft.macdBullishWeakColor}
-                  onChange={(color) => setDraft((d) => ({ ...d, macdBullishWeakColor: color }))}
-                  label="Alcista Débil"
-                />
-                <ColorPicker
-                  value={draft.macdBearishStrongColor}
-                  onChange={(color) => setDraft((d) => ({ ...d, macdBearishStrongColor: color }))}
-                  label="Bajista Fuerte"
-                />
-                <ColorPicker
-                  value={draft.macdBearishWeakColor}
-                  onChange={(color) => setDraft((d) => ({ ...d, macdBearishWeakColor: color }))}
-                  label="Bajista Débil"
-                />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5 border-t border-tv-border/40 pt-2">
-            <CheckboxField
-              label="Gradiente Montaña MACD"
-              checked={draft.macdShowMountain}
-              onChange={(b) => setDraft((d) => ({ ...d, macdShowMountain: b }))}
-            />
-            {draft.macdShowMountain && (
-              <div className="flex flex-col gap-1 pl-4 pt-1">
-                <span className="text-[9px] text-tv-text-muted uppercase tracking-wider font-semibold">
-                  Opacidad de montaña: {Math.round(draft.macdMountainOpacity * 100)}%
-                </span>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="1.0"
-                  step="0.05"
-                  value={draft.macdMountainOpacity}
-                  onChange={(e) => setDraft((d) => ({ ...d, macdMountainOpacity: parseFloat(e.target.value) }))}
-                  className="w-full accent-tv-blue h-1.5 rounded-lg bg-tv-border cursor-pointer appearance-none"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {activeTab === "style" && target === "adx" && (
         <div className="flex flex-col gap-3 py-2 border-b border-tv-border/20">

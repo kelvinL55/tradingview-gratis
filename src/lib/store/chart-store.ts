@@ -9,7 +9,6 @@ export type IndicatorKey =
   | "ema50"
   | "ema200"
   | "rsi"
-  | "macd"
   | "volume"
   | "adx"
   | "rci"
@@ -33,7 +32,7 @@ export interface ChartProfile {
   hidden: Record<IndicatorKey, boolean>;
   config: IndicatorConfig;
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", string>;
+  oscillatorOrder: ("rsi" | "adx" | "rci" | "stoch" | "sqzmom")[];
 }
 
 export interface IndicatorConfig {
@@ -45,9 +44,6 @@ export interface IndicatorConfig {
   rsiMaType: "None" | "SMA" | "EMA";
   rsiColor: string;
   rsiMaColor: string;
-  macdFast: number;
-  macdSlow: number;
-  macdSignal: number;
   adxLength: number;
   dmiLength: number;
   adxKeyLevel: number;
@@ -60,18 +56,6 @@ export interface IndicatorConfig {
   adxShowPlusDI: boolean;
   adxShowMinusDI: boolean;
   adxShowKeyLevel: boolean;
-  // MACD advanced configuration
-  macdShowMACD: boolean;
-  macdShowSignal: boolean;
-  macdShowHist: boolean;
-  macdShowMountain: boolean;
-  macdMountainOpacity: number;
-  macdColor: string;
-  macdSignalColor: string;
-  macdBullishStrongColor: string;
-  macdBullishWeakColor: string;
-  macdBearishStrongColor: string;
-  macdBearishWeakColor: string;
   // RCI (Rank Correlation Index) configuration
   rciLength1: number;
   rciLength2: number;
@@ -120,9 +104,6 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   rsiMaType: "SMA",
   rsiColor: "#ffffff",
   rsiMaColor: "#26c6da",
-  macdFast: 12,
-  macdSlow: 26,
-  macdSignal: 9,
   adxLength: 14,
   dmiLength: 14,
   adxKeyLevel: 23,
@@ -135,18 +116,6 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   adxShowPlusDI: true,
   adxShowMinusDI: true,
   adxShowKeyLevel: true,
-  // MACD defaults
-  macdShowMACD: true,
-  macdShowSignal: true,
-  macdShowHist: true,
-  macdShowMountain: false,
-  macdMountainOpacity: 0.1,
-  macdColor: "#2962ff",
-  macdSignalColor: "#ffb74d",
-  macdBullishStrongColor: "#26a69a",
-  macdBullishWeakColor: "#1e6a5f",
-  macdBearishStrongColor: "#ef5350",
-  macdBearishWeakColor: "#953432",
   // RCI defaults
   rciLength1: 9,
   rciLength2: 26,
@@ -191,7 +160,6 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   ema50: "#2962ff",
   ema200: "#ab47bc",
   rsi: "#ab47bc",
-  macd: "#2962ff",
   volume: "#787b86",
   adx: "#ef5350",
   rci: "#26c6da",
@@ -223,7 +191,7 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", string>;
+  oscillatorOrder: ("rsi" | "adx" | "rci" | "stoch" | "sqzmom")[];
   profiles: Record<string, ChartProfile | null>;
   activeProfileId: string | null;
 
@@ -249,7 +217,7 @@ interface ChartState {
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
   setTimezone: (tz: "UTC" | "Local") => void;
-  moveIndicatorPane: (key: "rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", targetPane: string) => void;
+  moveOscillator: (key: "rsi" | "adx" | "rci" | "stoch" | "sqzmom", direction: "up" | "down") => void;
   saveProfile: (id: string) => void;
   loadProfile: (id: string) => void;
 }
@@ -264,7 +232,6 @@ export const useChartStore = create<ChartState>()(
         ema50: true,
         ema200: false,
         rsi: true,
-        macd: false,
         volume: true,
         adx: false,
         rci: false,
@@ -276,7 +243,6 @@ export const useChartStore = create<ChartState>()(
         ema50: false,
         ema200: false,
         rsi: false,
-        macd: false,
         volume: false,
         adx: false,
         rci: false,
@@ -286,14 +252,7 @@ export const useChartStore = create<ChartState>()(
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
       timezone: "UTC",
-      indicatorPanes: {
-        rsi: "rsi",
-        macd: "macd",
-        adx: "adx",
-        rci: "rci",
-        stoch: "stoch",
-        sqzmom: "sqzmom",
-      },
+      oscillatorOrder: ["rsi", "adx", "rci", "stoch", "sqzmom"],
       profiles: {
         "1": null,
         "2": null,
@@ -359,10 +318,22 @@ export const useChartStore = create<ChartState>()(
       setSymbolDialogOpen: (symbolDialogOpen) => set({ symbolDialogOpen }),
       setSettingsTarget: (settingsTarget) => set({ settingsTarget }),
       setTimezone: (timezone) => set({ timezone }),
-      moveIndicatorPane: (key, targetPane) =>
-        set((s) => ({
-          indicatorPanes: { ...s.indicatorPanes, [key]: targetPane },
-        })),
+      moveOscillator: (key, direction) =>
+        set((s) => {
+          const list = [...(s.oscillatorOrder ?? ["rsi", "adx", "rci", "stoch", "sqzmom"])];
+          const idx = list.indexOf(key);
+          if (idx === -1) return {};
+          if (direction === "up" && idx > 0) {
+            const temp = list[idx - 1];
+            list[idx - 1] = list[idx];
+            list[idx] = temp;
+          } else if (direction === "down" && idx < list.length - 1) {
+            const temp = list[idx + 1];
+            list[idx + 1] = list[idx];
+            list[idx] = temp;
+          }
+          return { oscillatorOrder: list };
+        }),
       saveProfile: (id) =>
         set((s) => {
           const profile: ChartProfile = {
@@ -374,7 +345,7 @@ export const useChartStore = create<ChartState>()(
             hidden: { ...s.hidden },
             config: { ...s.config },
             timezone: s.timezone,
-            indicatorPanes: { ...s.indicatorPanes },
+            oscillatorOrder: { ...s.oscillatorOrder },
           };
           return {
             profiles: { ...s.profiles, [id]: profile },
@@ -392,14 +363,14 @@ export const useChartStore = create<ChartState>()(
             hidden: { ...profile.hidden },
             config: { ...profile.config },
             timezone: profile.timezone,
-            indicatorPanes: { ...profile.indicatorPanes },
+            oscillatorOrder: profile.oscillatorOrder ?? ["rsi", "adx", "rci", "stoch", "sqzmom"],
             activeProfileId: id,
           };
         }),
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 7,
+      version: 8,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -517,6 +488,51 @@ export const useChartStore = create<ChartState>()(
             }
           }
         }
+        if (version < 8) {
+          if (state) {
+            // Eliminar macd de los indicadores y de los ocultos
+            if (state.indicators) {
+              delete state.indicators.macd;
+            }
+            if (state.hidden) {
+              delete state.hidden.macd;
+            }
+            // Inicializar oscillatorOrder por defecto
+            if (state.oscillatorOrder === undefined) {
+              state.oscillatorOrder = ["rsi", "adx", "rci", "stoch", "sqzmom"];
+            }
+            // Limpiar config de cualquier propiedad macd residual si la hubiera
+            if (state.config) {
+              const cleanedConfig = { ...DEFAULT_CONFIG, ...state.config };
+              const macdKeys = [
+                "macdFast", "macdSlow", "macdSignal", "macdShowMACD",
+                "macdShowSignal", "macdShowHist", "macdShowMountain",
+                "macdMountainOpacity", "macdColor", "macdSignalColor",
+                "macdBullishStrongColor", "macdBullishWeakColor",
+                "macdBearishStrongColor", "macdBearishWeakColor"
+              ];
+              for (const key of macdKeys) {
+                delete (cleanedConfig as any)[key];
+              }
+              state.config = cleanedConfig;
+            }
+            // Eliminar indicatorPanes
+            delete state.indicatorPanes;
+
+            // Limpiar perfiles
+            if (state.profiles) {
+              for (const key of Object.keys(state.profiles)) {
+                const profile = state.profiles[key];
+                if (profile) {
+                  if (profile.indicators) delete profile.indicators.macd;
+                  if (profile.hidden) delete profile.hidden.macd;
+                  profile.oscillatorOrder = ["rsi", "adx", "rci", "stoch", "sqzmom"];
+                  delete profile.indicatorPanes;
+                }
+              }
+            }
+          }
+        }
         return state;
       },
       partialize: (s) => ({
@@ -527,7 +543,7 @@ export const useChartStore = create<ChartState>()(
         config: s.config,
         watchlist: s.watchlist,
         timezone: s.timezone,
-        indicatorPanes: s.indicatorPanes,
+        oscillatorOrder: s.oscillatorOrder,
         profiles: s.profiles,
         activeProfileId: s.activeProfileId,
       }),

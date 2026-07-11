@@ -1,5 +1,5 @@
 import { adxDmi } from "./index";
-import { macd } from "./index";
+import { squeezeMomentum } from "./index";
 import { rci } from "./rci";
 import type { Candle } from "@/lib/binance/types";
 
@@ -26,21 +26,21 @@ for (let i = 0; i < 100; i++) {
 
 console.log("=== EJECUTANDO PRUEBAS UNITARIAS DE INDICADORES ===");
 
-// 1. Validar MACD
-console.log("\nProcesando MACD (12, 26, 9)...");
-const macdResult = macd(mockCandles, 12, 26, 9);
-console.log(`MACD calculado. Puntos resultantes: ${macdResult.length}`);
-if (macdResult.length > 0) {
-  const lastPoint = macdResult[macdResult.length - 1];
-  console.log(`Último punto MACD -> MACD: ${lastPoint.macd.toFixed(4)}, Signal: ${lastPoint.signal.toFixed(4)}, Histograma: ${lastPoint.histogram.toFixed(4)}`);
-  if (isNaN(lastPoint.macd) || isNaN(lastPoint.signal) || isNaN(lastPoint.histogram)) {
-    console.error("❌ ERROR: El cálculo de MACD contiene valores NaN");
+// 1. Validar Squeeze Momentum
+console.log("\nProcesando Squeeze Momentum (20, 2.0, 20, 1.5)...");
+const sqzmomResult = squeezeMomentum(mockCandles, 20, 2.0, 20, 1.5, true);
+console.log(`Squeeze Momentum calculado. Puntos resultantes: ${sqzmomResult.length}`);
+if (sqzmomResult.length > 0) {
+  const lastPoint = sqzmomResult[sqzmomResult.length - 1];
+  console.log(`Último punto Squeeze Momentum -> Valor: ${lastPoint.val.toFixed(4)}, Squeeze On: ${lastPoint.isSqzOn}, Squeeze Off: ${lastPoint.isSqzOff}`);
+  if (isNaN(lastPoint.val)) {
+    console.error("❌ ERROR: El cálculo de Squeeze Momentum contiene valores NaN");
     process.exit(1);
   } else {
-    console.log("✅ MACD validado con éxito");
+    console.log("✅ Squeeze Momentum validado con éxito");
   }
 } else {
-  console.error("❌ ERROR: El cálculo de MACD no devolvió datos");
+  console.error("❌ ERROR: El cálculo de Squeeze Momentum no devolvió datos");
   process.exit(1);
 }
 
