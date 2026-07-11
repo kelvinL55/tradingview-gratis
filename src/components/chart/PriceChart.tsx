@@ -174,6 +174,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const ema50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const ema200Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiBgRef = useRef<ISeriesApi<"Baseline"> | null>(null);
   const rsiOversoldRef = useRef<ISeriesApi<"Baseline"> | null>(null);
   const rsiOverboughtRef = useRef<ISeriesApi<"Baseline"> | null>(null);
   const rsi30Ref = useRef<ISeriesApi<"Line"> | null>(null);
@@ -209,8 +210,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const toggleHidden = useChartStore((s) => s.toggleHidden);
   const setSettingsTarget = useChartStore((s) => s.setSettingsTarget);
   const timezone = useChartStore((s) => s.timezone);
-  const oscillatorOrder = useChartStore((s) => s.oscillatorOrder) ?? ["rsi", "adx", "rci", "stoch", "sqzmom"];
-  const moveOscillator = useChartStore((s) => s.moveOscillator);
+  const indicatorPanes = useChartStore((s) => s.indicatorPanes);
+  const setIndicatorPane = useChartStore((s) => s.setIndicatorPane);
 
   // Refs to avoid recreating subscribeClick on every tool change
   const toolRef = useRef(tool);
@@ -230,28 +231,26 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [renderTick, setRenderTick] = useState(0);
   const [extraLabel, setExtraLabel] = useState<{ x: number; text: string } | null>(null);
 
-  // Dynamic pane calculations
-  const activePaneIds = new Set<string>();
-  activePaneIds.add("main");
-  if (indicators.rsi) activePaneIds.add("rsi");
-  if (indicators.adx) activePaneIds.add("adx");
-  if (indicators.rci) activePaneIds.add("rci");
-  if (indicators.stoch) activePaneIds.add("stoch");
-  if (indicators.sqzmom) activePaneIds.add("sqzmom");
+  // Dynamic pane calculations based on indicatorPanes numbers (1 to 5)
+  const activePaneNums = new Set<number>();
+  if (indicators.rsi) activePaneNums.add(indicatorPanes.rsi);
+  if (indicators.adx) activePaneNums.add(indicatorPanes.adx);
+  if (indicators.rci) activePaneNums.add(indicatorPanes.rci);
+  if (indicators.stoch) activePaneNums.add(indicatorPanes.stoch);
+  if (indicators.sqzmom) activePaneNums.add(indicatorPanes.sqzmom);
 
-  const activeOscillators = oscillatorOrder.filter((key) => indicators[key]);
-  const visiblePanes = ["main", ...activeOscillators];
+  const sortedActivePanes = Array.from(activePaneNums).sort((a, b) => a - b);
 
-  const getPaneIndex = (paneId: string) => {
-    const idx = visiblePanes.indexOf(paneId);
-    return idx === -1 ? 0 : idx;
+  const getPaneIndexForNum = (paneNum: number) => {
+    const idx = sortedActivePanes.indexOf(paneNum);
+    return idx === -1 ? 0 : idx + 1; // 1 + index para dejar el 0 al precio principal
   };
 
-  const rsiPaneIdx = getPaneIndex("rsi");
-  const adxPaneIdx = getPaneIndex("adx");
-  const rciPaneIdx = getPaneIndex("rci");
-  const stochPaneIdx = getPaneIndex("stoch");
-  const sqzmomPaneIdx = getPaneIndex("sqzmom");
+  const rsiPaneIdx = indicators.rsi ? getPaneIndexForNum(indicatorPanes.rsi) : 0;
+  const adxPaneIdx = indicators.adx ? getPaneIndexForNum(indicatorPanes.adx) : 0;
+  const rciPaneIdx = indicators.rci ? getPaneIndexForNum(indicatorPanes.rci) : 0;
+  const stochPaneIdx = indicators.stoch ? getPaneIndexForNum(indicatorPanes.stoch) : 0;
+  const sqzmomPaneIdx = indicators.sqzmom ? getPaneIndexForNum(indicatorPanes.sqzmom) : 0;
 
   const rsiScaleId = "right";
   const adxScaleId = "right";
@@ -514,6 +513,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       ema50Ref.current = null;
       ema200Ref.current = null;
       rsiRef.current = null;
+      rsiBgRef.current = null;
       rsi30Ref.current = null;
       rsi50Ref.current = null;
       rsi70Ref.current = null;
@@ -586,7 +586,26 @@ export function PriceChart({ symbol, timeframe }: Props) {
         rsiPaneIdx,
       );
 
-      // 2. Relleno de sobrecompra (Baseline en 70) - Se agrega segundo para quedar al fondo
+      // 2. Fondo de canal lila (Baseline)
+      const rBg = chartRef.current.addSeries(
+        BaselineSeries,
+        {
+          baseValue: { type: "price", price: 70 },
+          topLineColor: "rgba(0,0,0,0)",
+          bottomLineColor: "rgba(0,0,0,0)",
+          topFillColor1: "rgba(0,0,0,0)",
+          topFillColor2: "rgba(0,0,0,0)",
+          bottomFillColor1: "rgba(126, 87, 194, 0.15)",
+          bottomFillColor2: "rgba(126, 87, 194, 0.15)",
+          lineVisible: false,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: rsiScaleId,
+        },
+        rsiPaneIdx,
+      );
+
+      // 3. Relleno de sobrecompra (Baseline en 70) - Se agrega después para quedar encima
       const rOverbought = chartRef.current.addSeries(
         BaselineSeries,
         {
@@ -665,6 +684,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         rsiPaneIdx,
       );
       rsiRef.current = r;
+      rsiBgRef.current = rBg;
       rsiOversoldRef.current = rOversold;
       rsiOverboughtRef.current = rOverbought;
       rsi30Ref.current = r30;
@@ -680,6 +700,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       updateRSI();
     } else if (!indicators.rsi && rsiRef.current && chartRef.current) {
       chartRef.current.removeSeries(rsiRef.current);
+      if (rsiBgRef.current) chartRef.current.removeSeries(rsiBgRef.current);
       if (rsiOversoldRef.current) chartRef.current.removeSeries(rsiOversoldRef.current);
       if (rsiOverboughtRef.current) chartRef.current.removeSeries(rsiOverboughtRef.current);
       if (rsi30Ref.current) chartRef.current.removeSeries(rsi30Ref.current);
@@ -687,6 +708,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       if (rsi70Ref.current) chartRef.current.removeSeries(rsi70Ref.current);
       if (rsiMaRef.current) chartRef.current.removeSeries(rsiMaRef.current);
       rsiRef.current = null;
+      rsiBgRef.current = null;
       rsiOversoldRef.current = null;
       rsiOverboughtRef.current = null;
       rsi30Ref.current = null;
@@ -696,7 +718,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.rsi, rsiPaneIdx, rsiScaleId]);
+  }, [indicators.rsi, rsiPaneIdx, rsiScaleId, indicatorPanes.rsi]);
 
 
 
@@ -1028,7 +1050,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       recomputePaneOffsets();
     }, 50);
     return () => clearTimeout(timer);
-  }, [indicators, oscillatorOrder]);
+  }, [indicators, indicatorPanes]);
 
   // Visibility — eye toggle (hidden state) + enabled state combined
   useEffect(() => {
@@ -1038,6 +1060,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     ema50Ref.current?.applyOptions({ visible: v("ema50") });
     ema200Ref.current?.applyOptions({ visible: v("ema200") });
     if (rsiRef.current) rsiRef.current.applyOptions({ visible: v("rsi") });
+    if (rsiBgRef.current) rsiBgRef.current.applyOptions({ visible: v("rsi") && (config.rsiShowBg ?? true) });
     if (rsi30Ref.current) rsi30Ref.current.applyOptions({ visible: v("rsi") });
     if (rsi50Ref.current) rsi50Ref.current.applyOptions({ visible: v("rsi") });
     if (rsi70Ref.current) rsi70Ref.current.applyOptions({ visible: v("rsi") });
@@ -1067,6 +1090,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     indicators,
     hidden,
     config.rsiMaType,
+    config.rsiShowBg,
     config.adxShowLine,
     config.adxShowPlusDI,
     config.adxShowMinusDI,
@@ -1091,6 +1115,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     const rColor = config.rsiColor ?? "#7e57c2";
     const rMaColor = config.rsiMaColor ?? "#ffb74d";
+    const rBgColor = config.rsiBgColor ?? "#7e57c2";
+    const rShowBg = config.rsiShowBg ?? true;
     if (rsiRef.current) {
       rsiRef.current.applyOptions({
         color: rColor,
@@ -1101,7 +1127,14 @@ export function PriceChart({ symbol, timeframe }: Props) {
         color: rMaColor,
       });
     }
-  }, [config.rsiColor, config.rsiMaColor]);
+    if (rsiBgRef.current) {
+      rsiBgRef.current.applyOptions({
+        bottomFillColor1: hexToRgba(rBgColor, 0.15),
+        bottomFillColor2: hexToRgba(rBgColor, 0.15),
+        visible: rShowBg && indicators.rsi && !hidden.rsi,
+      });
+    }
+  }, [config.rsiColor, config.rsiMaColor, config.rsiBgColor, config.rsiShowBg, indicators.rsi, hidden.rsi]);
 
 
 
@@ -1257,6 +1290,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }));
 
     rsiRef.current.setData(rsiData);
+    if (rsiBgRef.current) {
+      rsiBgRef.current.setData(
+        rsiData.map((p) => ({ time: p.time, value: 30 })),
+      );
+    }
     if (rsiOversoldRef.current) rsiOversoldRef.current.setData(rsiData);
     if (rsiOverboughtRef.current) rsiOverboughtRef.current.setData(rsiData);
 
@@ -1511,6 +1549,32 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     let unsub: (() => void) | null = null;
     let cancelled = false;
+
+    // Limpieza inmediata de datos viejos para una transición fluida al cambiar de moneda/timeframe
+    if (chartRef.current) {
+      candleSeriesRef.current?.setData([]);
+      volumeSeriesRef.current?.setData([]);
+      rsiRef.current?.setData([]);
+      if (rsiBgRef.current) rsiBgRef.current.setData([]);
+      rsiOversoldRef.current?.setData([]);
+      rsiOverboughtRef.current?.setData([]);
+      rsi30Ref.current?.setData([]);
+      rsi50Ref.current?.setData([]);
+      rsi70Ref.current?.setData([]);
+      rsiMaRef.current?.setData([]);
+      adxRef.current?.setData([]);
+      plusDIRef.current?.setData([]);
+      minusDIRef.current?.setData([]);
+      adxKeyLevelRef.current?.setData([]);
+      rci1Ref.current?.setData([]);
+      rci2Ref.current?.setData([]);
+      rci3Ref.current?.setData([]);
+      stochKRef.current?.setData([]);
+      stochDRef.current?.setData([]);
+      sqzmomHistRef.current?.setData([]);
+      sqzmomSqzRef.current?.setData([]);
+      candlesRef.current = [];
+    }
 
     async function load() {
       try {
@@ -1872,7 +1936,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("rsi")}
               onSettings={() => setSettingsTarget("rsi")}
               onRemove={() => removeIndicator("rsi")}
-              onMoveDown={activeOscillators.indexOf("rsi") < activeOscillators.length - 1 ? () => moveOscillator("rsi", "down") : undefined}
+              order={indicatorPanes.rsi}
+              onChangeOrder={(num) => setIndicatorPane("rsi", num)}
             />
           )}
 
@@ -1889,7 +1954,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("adx")}
               onSettings={() => setSettingsTarget("adx")}
               onRemove={() => removeIndicator("adx")}
-              onMoveDown={activeOscillators.indexOf("adx") < activeOscillators.length - 1 ? () => moveOscillator("adx", "down") : undefined}
+              order={indicatorPanes.adx}
+              onChangeOrder={(num) => setIndicatorPane("adx", num)}
             />
           )}
           {indicators.rci && rciPaneIdx === 0 && (
@@ -1905,7 +1971,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("rci")}
               onSettings={() => setSettingsTarget("rci")}
               onRemove={() => removeIndicator("rci")}
-              onMoveDown={activeOscillators.indexOf("rci") < activeOscillators.length - 1 ? () => moveOscillator("rci", "down") : undefined}
+              order={indicatorPanes.rci}
+              onChangeOrder={(num) => setIndicatorPane("rci", num)}
             />
           )}
           {indicators.stoch && stochPaneIdx === 0 && (
@@ -1938,7 +2005,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("stoch")}
               onSettings={() => setSettingsTarget("stoch")}
               onRemove={() => removeIndicator("stoch")}
-              onMoveDown={activeOscillators.indexOf("stoch") < activeOscillators.length - 1 ? () => moveOscillator("stoch", "down") : undefined}
+              order={indicatorPanes.stoch}
+              onChangeOrder={(num) => setIndicatorPane("stoch", num)}
             />
           )}
           {indicators.sqzmom && sqzmomPaneIdx === 0 && (
@@ -1954,7 +2022,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
           onToggleHide={() => toggleHidden("sqzmom")}
           onSettings={() => setSettingsTarget("sqzmom")}
           onRemove={() => removeIndicator("sqzmom")}
-          onMoveDown={activeOscillators.indexOf("sqzmom") < activeOscillators.length - 1 ? () => moveOscillator("sqzmom", "down") : undefined}
+          order={indicatorPanes.sqzmom}
+          onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
         />
       )}
         </div>
@@ -1967,7 +2036,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
         const indicatorsInPane: React.ReactNode[] = [];
 
         if (indicators.rsi && rsiPaneIdx === paneIdx) {
-          const rsiIdx = activeOscillators.indexOf("rsi");
           indicatorsInPane.push(
             <IndicatorPill
               key="rsi"
@@ -1991,14 +2059,13 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("rsi")}
               onSettings={() => setSettingsTarget("rsi")}
               onRemove={() => removeIndicator("rsi")}
-              onMoveUp={rsiIdx > 0 ? () => moveOscillator("rsi", "up") : undefined}
-              onMoveDown={rsiIdx < activeOscillators.length - 1 && rsiIdx !== -1 ? () => moveOscillator("rsi", "down") : undefined}
+              order={indicatorPanes.rsi}
+              onChangeOrder={(num) => setIndicatorPane("rsi", num)}
             />
           );
         }
 
         if (indicators.adx && adxPaneIdx === paneIdx) {
-          const adxIdx = activeOscillators.indexOf("adx");
           indicatorsInPane.push(
             <IndicatorPill
               key="adx"
@@ -2013,14 +2080,13 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("adx")}
               onSettings={() => setSettingsTarget("adx")}
               onRemove={() => removeIndicator("adx")}
-              onMoveUp={adxIdx > 0 ? () => moveOscillator("adx", "up") : undefined}
-              onMoveDown={adxIdx < activeOscillators.length - 1 && adxIdx !== -1 ? () => moveOscillator("adx", "down") : undefined}
+              order={indicatorPanes.adx}
+              onChangeOrder={(num) => setIndicatorPane("adx", num)}
             />
           );
         }
 
         if (indicators.rci && rciPaneIdx === paneIdx) {
-          const rciIdx = activeOscillators.indexOf("rci");
           indicatorsInPane.push(
             <IndicatorPill
               key="rci"
@@ -2035,14 +2101,13 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("rci")}
               onSettings={() => setSettingsTarget("rci")}
               onRemove={() => removeIndicator("rci")}
-              onMoveUp={rciIdx > 0 ? () => moveOscillator("rci", "up") : undefined}
-              onMoveDown={rciIdx < activeOscillators.length - 1 && rciIdx !== -1 ? () => moveOscillator("rci", "down") : undefined}
+              order={indicatorPanes.rci}
+              onChangeOrder={(num) => setIndicatorPane("rci", num)}
             />
           );
         }
 
         if (indicators.stoch && stochPaneIdx === paneIdx) {
-          const stochIdx = activeOscillators.indexOf("stoch");
           indicatorsInPane.push(
             <IndicatorPill
               key="stoch"
@@ -2074,14 +2139,13 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("stoch")}
               onSettings={() => setSettingsTarget("stoch")}
               onRemove={() => removeIndicator("stoch")}
-              onMoveUp={stochIdx > 0 ? () => moveOscillator("stoch", "up") : undefined}
-              onMoveDown={stochIdx < activeOscillators.length - 1 && stochIdx !== -1 ? () => moveOscillator("stoch", "down") : undefined}
+              order={indicatorPanes.stoch}
+              onChangeOrder={(num) => setIndicatorPane("stoch", num)}
             />
           );
         }
 
         if (indicators.sqzmom && sqzmomPaneIdx === paneIdx) {
-          const sqzmomIdx = activeOscillators.indexOf("sqzmom");
           indicatorsInPane.push(
             <IndicatorPill
               key="sqzmom"
@@ -2096,8 +2160,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("sqzmom")}
               onSettings={() => setSettingsTarget("sqzmom")}
               onRemove={() => removeIndicator("sqzmom")}
-              onMoveUp={sqzmomIdx > 0 ? () => moveOscillator("sqzmom", "up") : undefined}
-              onMoveDown={sqzmomIdx < activeOscillators.length - 1 && sqzmomIdx !== -1 ? () => moveOscillator("sqzmom", "down") : undefined}
+              order={indicatorPanes.sqzmom}
+              onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
             />
           );
         }

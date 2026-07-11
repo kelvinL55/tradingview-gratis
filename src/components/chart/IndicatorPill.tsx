@@ -13,6 +13,8 @@ interface Props {
   onRemove: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  order?: number;
+  onChangeOrder?: (order: number) => void;
 }
 
 export function IndicatorPill({
@@ -25,6 +27,8 @@ export function IndicatorPill({
   onRemove,
   onMoveUp,
   onMoveDown,
+  order,
+  onChangeOrder,
 }: Props) {
   return (
     <div
@@ -33,6 +37,20 @@ export function IndicatorPill({
         hidden && "opacity-50",
       )}
     >
+      {onChangeOrder !== undefined && order !== undefined && (
+        <select
+          value={order}
+          onChange={(e) => onChangeOrder(parseInt(e.target.value))}
+          title="Número de panel/orden (indicadores con el mismo número se unirán)"
+          className="bg-tv-bg text-tv-text text-[10px] font-bold border border-tv-border/60 rounded px-0.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-tv-blue cursor-pointer pointer-events-auto mr-0.5 h-[18px] w-6 text-center appearance-none flex items-center justify-center hover:bg-tv-panel-hover"
+        >
+          {[1, 2, 3, 4, 5].map((num) => (
+            <option key={num} value={num}>
+              {num}
+            </option>
+          ))}
+        </select>
+      )}
       <span
         className="h-1.5 w-1.5 shrink-0 rounded-full"
         style={{ background: color }}

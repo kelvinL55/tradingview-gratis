@@ -87,6 +87,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     rsiMaType: config.rsiMaType ?? "SMA",
     rsiColor: config.rsiColor ?? "#7e57c2",
     rsiMaColor: config.rsiMaColor ?? "#ffb74d",
+    rsiShowBg: config.rsiShowBg ?? true,
+    rsiBgColor: config.rsiBgColor ?? "#7e57c2",
     adxLength: config.adxLength ?? 14,
     dmiLength: config.dmiLength ?? 14,
     adxKeyLevel: config.adxKeyLevel ?? 23,
@@ -144,6 +146,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       rsiMaType: config.rsiMaType ?? "SMA",
       rsiColor: config.rsiColor ?? "#7e57c2",
       rsiMaColor: config.rsiMaColor ?? "#ffb74d",
+      rsiShowBg: config.rsiShowBg ?? true,
+      rsiBgColor: config.rsiBgColor ?? "#7e57c2",
       adxLength: config.adxLength ?? 14,
       dmiLength: config.dmiLength ?? 14,
       adxKeyLevel: config.adxKeyLevel ?? 23,
@@ -204,6 +208,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         rsiMaType: draft.rsiMaType,
         rsiColor: draft.rsiColor,
         rsiMaColor: draft.rsiMaColor,
+        rsiShowBg: draft.rsiShowBg,
+        rsiBgColor: draft.rsiBgColor,
       });
 
     else if (target === "adx")
@@ -517,6 +523,20 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
               label="Promedio Móvil (RSI-based MA)"
             />
           )}
+          <div className="flex items-center justify-between border-t border-tv-border/40 pt-3">
+            <CheckboxField
+              label="Fondo del canal"
+              checked={draft.rsiShowBg}
+              onChange={(b) => setDraft((d) => ({ ...d, rsiShowBg: b }))}
+            />
+            {draft.rsiShowBg && (
+              <ColorPicker
+                value={draft.rsiBgColor}
+                onChange={(color) => setDraft((d) => ({ ...d, rsiBgColor: color }))}
+                label="Lila"
+              />
+            )}
+          </div>
         </div>
       )}
 

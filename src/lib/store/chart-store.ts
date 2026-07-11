@@ -32,7 +32,7 @@ export interface ChartProfile {
   hidden: Record<IndicatorKey, boolean>;
   config: IndicatorConfig;
   timezone: "UTC" | "Local";
-  oscillatorOrder: ("rsi" | "adx" | "rci" | "stoch" | "sqzmom")[];
+  indicatorPanes: Record<"rsi" | "adx" | "rci" | "stoch" | "sqzmom", number>;
 }
 
 export interface IndicatorConfig {
@@ -44,6 +44,8 @@ export interface IndicatorConfig {
   rsiMaType: "None" | "SMA" | "EMA";
   rsiColor: string;
   rsiMaColor: string;
+  rsiShowBg: boolean;
+  rsiBgColor: string;
   adxLength: number;
   dmiLength: number;
   adxKeyLevel: number;
@@ -104,6 +106,8 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   rsiMaType: "SMA",
   rsiColor: "#ffffff",
   rsiMaColor: "#26c6da",
+  rsiShowBg: true,
+  rsiBgColor: "#7e57c2",
   adxLength: 14,
   dmiLength: 14,
   adxKeyLevel: 23,
@@ -191,7 +195,7 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
   timezone: "UTC" | "Local";
-  oscillatorOrder: ("rsi" | "adx" | "rci" | "stoch" | "sqzmom")[];
+  indicatorPanes: Record<"rsi" | "adx" | "rci" | "stoch" | "sqzmom", number>;
   profiles: Record<string, ChartProfile | null>;
   activeProfileId: string | null;
 
@@ -217,7 +221,7 @@ interface ChartState {
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
   setTimezone: (tz: "UTC" | "Local") => void;
-  moveOscillator: (key: "rsi" | "adx" | "rci" | "stoch" | "sqzmom", direction: "up" | "down") => void;
+  setIndicatorPane: (key: "rsi" | "adx" | "rci" | "stoch" | "sqzmom", paneNum: number) => void;
   saveProfile: (id: string) => void;
   loadProfile: (id: string) => void;
 }
@@ -252,7 +256,13 @@ export const useChartStore = create<ChartState>()(
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
       timezone: "UTC",
-      oscillatorOrder: ["rsi", "adx", "rci", "stoch", "sqzmom"],
+      indicatorPanes: {
+        rsi: 1,
+        adx: 2,
+        rci: 3,
+        stoch: 4,
+        sqzmom: 5,
+      },
       profiles: {
         "1": null,
         "2": null,
@@ -318,22 +328,10 @@ export const useChartStore = create<ChartState>()(
       setSymbolDialogOpen: (symbolDialogOpen) => set({ symbolDialogOpen }),
       setSettingsTarget: (settingsTarget) => set({ settingsTarget }),
       setTimezone: (timezone) => set({ timezone }),
-      moveOscillator: (key, direction) =>
-        set((s) => {
-          const list = [...(s.oscillatorOrder ?? ["rsi", "adx", "rci", "stoch", "sqzmom"])];
-          const idx = list.indexOf(key);
-          if (idx === -1) return {};
-          if (direction === "up" && idx > 0) {
-            const temp = list[idx - 1];
-            list[idx - 1] = list[idx];
-            list[idx] = temp;
-          } else if (direction === "down" && idx < list.length - 1) {
-            const temp = list[idx + 1];
-            list[idx + 1] = list[idx];
-            list[idx] = temp;
-          }
-          return { oscillatorOrder: list };
-        }),
+      setIndicatorPane: (key, paneNum) =>
+        set((s) => ({
+          indicatorPanes: { ...s.indicatorPanes, [key]: paneNum },
+        })),
       saveProfile: (id) =>
         set((s) => {
           const profile: ChartProfile = {
@@ -345,7 +343,7 @@ export const useChartStore = create<ChartState>()(
             hidden: { ...s.hidden },
             config: { ...s.config },
             timezone: s.timezone,
-            oscillatorOrder: { ...s.oscillatorOrder },
+            indicatorPanes: { ...s.indicatorPanes },
           };
           return {
             profiles: { ...s.profiles, [id]: profile },
@@ -363,14 +361,14 @@ export const useChartStore = create<ChartState>()(
             hidden: { ...profile.hidden },
             config: { ...profile.config },
             timezone: profile.timezone,
-            oscillatorOrder: profile.oscillatorOrder ?? ["rsi", "adx", "rci", "stoch", "sqzmom"],
+            indicatorPanes: profile.indicatorPanes ?? { rsi: 1, adx: 2, rci: 3, stoch: 4, sqzmom: 5 },
             activeProfileId: id,
           };
         }),
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 8,
+      version: 9,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -533,6 +531,38 @@ export const useChartStore = create<ChartState>()(
             }
           }
         }
+        if (version < 9) {
+          if (state) {
+            // Eliminar oscillatorOrder y restaurar indicatorPanes
+            delete state.oscillatorOrder;
+            if (state.indicatorPanes === undefined) {
+              state.indicatorPanes = {
+                rsi: 1,
+                adx: 2,
+                rci: 3,
+                stoch: 4,
+                sqzmom: 5,
+              };
+            }
+            if (state.config) {
+              state.config = {
+                ...DEFAULT_CONFIG,
+                ...state.config,
+                rsiShowBg: state.config.rsiShowBg ?? true,
+                rsiBgColor: state.config.rsiBgColor ?? "#7e57c2",
+              };
+            }
+            if (state.profiles) {
+              for (const key of Object.keys(state.profiles)) {
+                const profile = state.profiles[key];
+                if (profile) {
+                  delete profile.oscillatorOrder;
+                  profile.indicatorPanes = profile.indicatorPanes ?? { rsi: 1, adx: 2, rci: 3, stoch: 4, sqzmom: 5 };
+                }
+              }
+            }
+          }
+        }
         return state;
       },
       partialize: (s) => ({
@@ -543,7 +573,7 @@ export const useChartStore = create<ChartState>()(
         config: s.config,
         watchlist: s.watchlist,
         timezone: s.timezone,
-        oscillatorOrder: s.oscillatorOrder,
+        indicatorPanes: s.indicatorPanes,
         profiles: s.profiles,
         activeProfileId: s.activeProfileId,
       }),
