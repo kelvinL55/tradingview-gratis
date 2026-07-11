@@ -44,6 +44,11 @@ const ENTRIES: Entry[] = [
     group: "Osciladores",
     label: (c) => `Stoch (${c.stochPeriodK}, ${c.stochSmoothK}, ${c.stochPeriodD})`,
   },
+  {
+    key: "sqzmom",
+    group: "Osciladores",
+    label: (c) => `SQZMOM_LB (${c.sqzmomLength}, ${c.sqzmomMult}, ${c.sqzmomLengthKC}, ${c.sqzmomMultKC})`,
+  },
 ];
 
 export function IndicatorMenu() {

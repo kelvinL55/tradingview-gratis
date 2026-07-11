@@ -25,6 +25,7 @@ const TITLES: Record<IndicatorKey, string> = {
   adx: "DMI / ADX / KEYLEVEL",
   rci: "RCI (Rank Correlation Index)",
   stoch: "Stoch + EMAs Replica",
+  sqzmom: "SQZMOM_LB",
 };
 
 export function IndicatorSettingsDialog() {
@@ -132,6 +133,20 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
     stochEma2Len: config.stochEma2Len ?? 200,
     stochKColor: config.stochKColor ?? "#ffffff",
     stochDColor: config.stochDColor ?? "#ffb74d",
+    sqzmomLength: config.sqzmomLength ?? 20,
+    sqzmomMult: config.sqzmomMult ?? 2.0,
+    sqzmomLengthKC: config.sqzmomLengthKC ?? 20,
+    sqzmomMultKC: config.sqzmomMultKC ?? 1.5,
+    sqzmomUseTrueRange: config.sqzmomUseTrueRange ?? true,
+    sqzmomShowHist: config.sqzmomShowHist ?? true,
+    sqzmomColor0: config.sqzmomColor0 ?? "#00e676",
+    sqzmomColor1: config.sqzmomColor1 ?? "#1b5e20",
+    sqzmomColor2: config.sqzmomColor2 ?? "#ff5252",
+    sqzmomColor3: config.sqzmomColor3 ?? "#8e0000",
+    sqzmomShowSqz: config.sqzmomShowSqz ?? true,
+    sqzmomSqzNo: config.sqzmomSqzNo ?? "#0000ff",
+    sqzmomSqzOn: config.sqzmomSqzOn ?? "#000000",
+    sqzmomSqzOff: config.sqzmomSqzOff ?? "#808080",
   });
 
   useEffect(() => {
@@ -189,6 +204,20 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       stochEma2Len: config.stochEma2Len ?? 200,
       stochKColor: config.stochKColor ?? "#ffffff",
       stochDColor: config.stochDColor ?? "#ffb74d",
+      sqzmomLength: config.sqzmomLength ?? 20,
+      sqzmomMult: config.sqzmomMult ?? 2.0,
+      sqzmomLengthKC: config.sqzmomLengthKC ?? 20,
+      sqzmomMultKC: config.sqzmomMultKC ?? 1.5,
+      sqzmomUseTrueRange: config.sqzmomUseTrueRange ?? true,
+      sqzmomShowHist: config.sqzmomShowHist ?? true,
+      sqzmomColor0: config.sqzmomColor0 ?? "#00e676",
+      sqzmomColor1: config.sqzmomColor1 ?? "#1b5e20",
+      sqzmomColor2: config.sqzmomColor2 ?? "#ff5252",
+      sqzmomColor3: config.sqzmomColor3 ?? "#8e0000",
+      sqzmomShowSqz: config.sqzmomShowSqz ?? true,
+      sqzmomSqzNo: config.sqzmomSqzNo ?? "#0000ff",
+      sqzmomSqzOn: config.sqzmomSqzOn ?? "#000000",
+      sqzmomSqzOff: config.sqzmomSqzOff ?? "#808080",
     });
     setActiveTab("inputs");
   }, [config, target]);
@@ -262,13 +291,30 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         stochKColor: draft.stochKColor,
         stochDColor: draft.stochDColor,
       });
+    else if (target === "sqzmom")
+      onSave({
+        sqzmomLength: clamp(draft.sqzmomLength, 2, 200),
+        sqzmomMult: clamp(draft.sqzmomMult, 0.1, 10),
+        sqzmomLengthKC: clamp(draft.sqzmomLengthKC, 2, 200),
+        sqzmomMultKC: clamp(draft.sqzmomMultKC, 0.1, 10),
+        sqzmomUseTrueRange: draft.sqzmomUseTrueRange,
+        sqzmomShowHist: draft.sqzmomShowHist,
+        sqzmomColor0: draft.sqzmomColor0,
+        sqzmomColor1: draft.sqzmomColor1,
+        sqzmomColor2: draft.sqzmomColor2,
+        sqzmomColor3: draft.sqzmomColor3,
+        sqzmomShowSqz: draft.sqzmomShowSqz,
+        sqzmomSqzNo: draft.sqzmomSqzNo,
+        sqzmomSqzOn: draft.sqzmomSqzOn,
+        sqzmomSqzOff: draft.sqzmomSqzOff,
+      });
     else if (target === "volume") onSave({});
   }
 
   return (
     <div className="flex flex-col gap-3 text-tv-text">
       {/* TradingView-like Tabs for RSI / ADX / MACD / RCI to divide Inputs vs Style */}
-      {(target === "rsi" || target === "adx" || target === "macd" || target === "rci" || target === "stoch") && (
+      {(target === "rsi" || target === "adx" || target === "macd" || target === "rci" || target === "stoch" || target === "sqzmom") && (
         <div className="flex border-b border-tv-border -mx-6 px-6 mb-2 text-xs">
           <button
             onClick={() => setActiveTab("inputs")}
@@ -471,6 +517,41 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
                   label="EMA 2 (referencia)"
                   value={draft.stochEma2Len}
                   onChange={(n) => setDraft((d) => ({ ...d, stochEma2Len: n }))}
+                />
+              </div>
+            </div>
+          )}
+          {target === "sqzmom" && (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Field
+                  label="BB Length"
+                  value={draft.sqzmomLength}
+                  onChange={(n) => setDraft((d) => ({ ...d, sqzmomLength: n }))}
+                />
+                <DecimalField
+                  label="BB MultFactor"
+                  value={draft.sqzmomMult}
+                  onChange={(n) => setDraft((d) => ({ ...d, sqzmomMult: n }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field
+                  label="KC Length"
+                  value={draft.sqzmomLengthKC}
+                  onChange={(n) => setDraft((d) => ({ ...d, sqzmomLengthKC: n }))}
+                />
+                <DecimalField
+                  label="KC MultFactor"
+                  value={draft.sqzmomMultKC}
+                  onChange={(n) => setDraft((d) => ({ ...d, sqzmomMultKC: n }))}
+                />
+              </div>
+              <div className="mt-1">
+                <CheckboxField
+                  label="Use TrueRange (KC)"
+                  checked={draft.sqzmomUseTrueRange}
+                  onChange={(b) => setDraft((d) => ({ ...d, sqzmomUseTrueRange: b }))}
                 />
               </div>
             </div>
@@ -701,6 +782,71 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
         </div>
       )}
 
+      {activeTab === "style" && target === "sqzmom" && (
+        <div className="flex flex-col gap-3 py-2 border-b border-tv-border/20 max-h-[250px] overflow-y-auto pr-1">
+          {/* Primer trazado (Histograma) */}
+          <div className="flex flex-col gap-1.5 pt-1">
+            <CheckboxField
+              label="Trazado del gráfico"
+              checked={draft.sqzmomShowHist}
+              onChange={(b) => setDraft((d) => ({ ...d, sqzmomShowHist: b }))}
+            />
+            {draft.sqzmomShowHist && (
+              <div className="grid grid-cols-2 gap-2 pl-4 pt-1">
+                <ColorPicker
+                  value={draft.sqzmomColor0}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomColor0: color }))}
+                  label="Color 0"
+                />
+                <ColorPicker
+                  value={draft.sqzmomColor1}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomColor1: color }))}
+                  label="Color 1"
+                />
+                <ColorPicker
+                  value={draft.sqzmomColor2}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomColor2: color }))}
+                  label="Color 2"
+                />
+                <ColorPicker
+                  value={draft.sqzmomColor3}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomColor3: color }))}
+                  label="Color 3"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Segundo trazado (Cruces del Squeeze) */}
+          <div className="flex flex-col gap-1.5 border-t border-tv-border/40 pt-2">
+            <CheckboxField
+              label="Trazado del gráfico"
+              checked={draft.sqzmomShowSqz}
+              onChange={(b) => setDraft((d) => ({ ...d, sqzmomShowSqz: b }))}
+            />
+            {draft.sqzmomShowSqz && (
+              <div className="grid grid-cols-3 gap-1 pl-4 pt-1">
+                <ColorPicker
+                  value={draft.sqzmomSqzNo}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomSqzNo: color }))}
+                  label="Color 0"
+                />
+                <ColorPicker
+                  value={draft.sqzmomSqzOn}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomSqzOn: color }))}
+                  label="Color 1"
+                />
+                <ColorPicker
+                  value={draft.sqzmomSqzOff}
+                  onChange={(color) => setDraft((d) => ({ ...d, sqzmomSqzOff: color }))}
+                  label="Color 2"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mt-2 flex items-center justify-between">
         <Button
           variant="ghost"
@@ -803,5 +949,37 @@ function ColorPicker({
       </div>
       {label && <span className="text-xs font-medium text-tv-text">{label}</span>}
     </div>
+  );
+}
+
+function DecimalField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      {label && (
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-tv-text-muted">
+          {label}
+        </span>
+      )}
+      <Input
+        type="number"
+        step="0.1"
+        min={0.1}
+        max={20}
+        value={value}
+        onChange={(e) => {
+          const n = parseFloat(e.target.value);
+          if (!isNaN(n)) onChange(n);
+        }}
+        className="bg-tv-bg tabular-nums h-8 text-xs border-tv-border/60"
+      />
+    </label>
   );
 }

@@ -16,7 +16,7 @@ import {
 } from "lightweight-charts";
 import { fetchKlines } from "@/lib/binance/rest";
 import { getBinanceWS } from "@/lib/binance/ws";
-import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi, rci, stochastic } from "@/lib/indicators";
+import { ema, rsi, macd, calculateSMA, calculateEMA, adxDmi, rci, stochastic, squeezeMomentum } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
   INDICATOR_COLORS,
@@ -144,6 +144,7 @@ interface LastValues {
   stochD?: number;
   stochEma1?: number;
   stochEma2?: number;
+  sqzmom?: number;
 }
 
 interface PaneOffset {
@@ -200,6 +201,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const stoch20Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const stoch50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const stoch80Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  const sqzmomHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const sqzmomSqzRef = useRef<ISeriesApi<"Line"> | null>(null);
   const candlesRef = useRef<Candle[]>([]);
   const priceLinesMapRef = useRef<Map<string, IPriceLine>>(new Map());
 
@@ -242,8 +245,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
   if (indicators.adx) activePaneIds.add(indicatorPanes.adx);
   if (indicators.rci) activePaneIds.add(indicatorPanes.rci);
   if (indicators.stoch) activePaneIds.add(indicatorPanes.stoch);
+  if (indicators.sqzmom) activePaneIds.add(indicatorPanes.sqzmom);
 
-  const PANE_ORDER = ["main", "rsi", "macd", "adx", "rci", "stoch"];
+  const PANE_ORDER = ["main", "rsi", "macd", "adx", "rci", "stoch", "sqzmom"];
   const visiblePanes = PANE_ORDER.filter((id) => activePaneIds.has(id));
 
   const getPaneIndex = (paneId: string) => {
@@ -256,14 +260,16 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const adxPaneIdx = getPaneIndex(indicatorPanes.adx);
   const rciPaneIdx = getPaneIndex(indicatorPanes.rci);
   const stochPaneIdx = getPaneIndex(indicatorPanes.stoch);
+  const sqzmomPaneIdx = getPaneIndex(indicatorPanes.sqzmom);
 
   const rsiScaleId = indicatorPanes.rsi === "rsi" ? "right" : "left";
   const macdScaleId = indicatorPanes.macd === "macd" ? "right" : "left";
   const adxScaleId = indicatorPanes.adx === "adx" ? "right" : "left";
   const rciScaleId = indicatorPanes.rci === "rci" ? "right" : "left";
   const stochScaleId = indicatorPanes.stoch === "stoch" ? "right" : "left";
+  const sqzmomScaleId = indicatorPanes.sqzmom === "sqzmom" ? "right" : "left";
 
-  const handleMovePane = (key: "rsi" | "macd" | "adx" | "rci" | "stoch", direction: "up" | "down") => {
+  const handleMovePane = (key: "rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", direction: "up" | "down") => {
     const currentPane = indicatorPanes[key];
     const idx = PANE_ORDER.indexOf(currentPane);
     if (idx === -1) return;
@@ -1048,16 +1054,65 @@ export function PriceChart({ symbol, timeframe }: Props) {
       if (stochDRef.current) chartRef.current.removeSeries(stochDRef.current);
       if (stoch80Ref.current) chartRef.current.removeSeries(stoch80Ref.current);
       if (stoch20Ref.current) chartRef.current.removeSeries(stoch20Ref.current);
-      if (stoch50Ref.current) chartRef.current.removeSeries(stoch50Ref.current);
+      if (stoch80Ref.current) chartRef.current.removeSeries(stoch80Ref.current);
+      if (sqzmomHistRef.current) chartRef.current.removeSeries(sqzmomHistRef.current);
+      if (sqzmomSqzRef.current) chartRef.current.removeSeries(sqzmomSqzRef.current);
       stochKRef.current = null;
       stochDRef.current = null;
-      stoch80Ref.current = null;
       stoch20Ref.current = null;
       stoch50Ref.current = null;
+      stoch80Ref.current = null;
+      sqzmomHistRef.current = null;
+      sqzmomSqzRef.current = null;
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators.stoch, stochPaneIdx, stochScaleId]);
+
+  // Squeeze Momentum pane
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (indicators.sqzmom && !sqzmomHistRef.current) {
+      const histSeries = chartRef.current.addSeries(
+        HistogramSeries,
+        {
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: sqzmomScaleId,
+        },
+        sqzmomPaneIdx,
+      );
+
+      const sqzSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "transparent",
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: sqzmomScaleId,
+        },
+        sqzmomPaneIdx,
+      );
+
+      sqzmomHistRef.current = histSeries;
+      sqzmomSqzRef.current = sqzSeries;
+
+      try {
+        if (sqzmomPaneIdx > 0) {
+          chartRef.current.panes()[sqzmomPaneIdx]?.setStretchFactor(1);
+        }
+        chartRef.current.panes()[0]?.setStretchFactor(3);
+      } catch {}
+      updateSqzMom();
+    } else if (!indicators.sqzmom && sqzmomHistRef.current && chartRef.current) {
+      chartRef.current.removeSeries(sqzmomHistRef.current);
+      if (sqzmomSqzRef.current) chartRef.current.removeSeries(sqzmomSqzRef.current);
+      sqzmomHistRef.current = null;
+      sqzmomSqzRef.current = null;
+    }
+    requestAnimationFrame(() => recomputePaneOffsets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.sqzmom, sqzmomPaneIdx, sqzmomScaleId]);
 
   // Recompute offsets when indicator visibility or pane assignment changes
   useEffect(() => {
@@ -1103,6 +1158,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (stoch50Ref.current) stoch50Ref.current.applyOptions({ visible: v("stoch") });
 
     if (volumeSeriesRef.current) volumeSeriesRef.current.applyOptions({ visible: v("volume") });
+    if (sqzmomHistRef.current) sqzmomHistRef.current.applyOptions({ visible: v("sqzmom") && (config.sqzmomShowHist ?? true) });
+    if (sqzmomSqzRef.current) sqzmomSqzRef.current.applyOptions({ visible: v("sqzmom") && (config.sqzmomShowSqz ?? true) });
   }, [
     indicators,
     hidden,
@@ -1118,6 +1175,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
     config.rciShow1,
     config.rciShow2,
     config.rciShow3,
+    config.sqzmomShowHist,
+    config.sqzmomShowSqz,
   ]);
 
   // Recompute indicators when config changes (periods)
@@ -1209,6 +1268,23 @@ export function PriceChart({ symbol, timeframe }: Props) {
     if (stochKRef.current) stochKRef.current.applyOptions({ color: config.stochKColor });
     if (stochDRef.current) stochDRef.current.applyOptions({ color: config.stochDColor });
   }, [config.stochKColor, config.stochDColor]);
+
+  useEffect(() => {
+    updateSqzMom();
+  }, [
+    config.sqzmomLength,
+    config.sqzmomMult,
+    config.sqzmomLengthKC,
+    config.sqzmomMultKC,
+    config.sqzmomUseTrueRange,
+    config.sqzmomColor0,
+    config.sqzmomColor1,
+    config.sqzmomColor2,
+    config.sqzmomColor3,
+    config.sqzmomSqzNo,
+    config.sqzmomSqzOn,
+    config.sqzmomSqzOff,
+  ]);
 
   // Sync price lines from store to the candle series
   useEffect(() => {
@@ -1535,6 +1611,80 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }));
   }
 
+  function updateSqzMom() {
+    const c = candlesRef.current;
+    if (c.length === 0 || !sqzmomHistRef.current) return;
+    const cfg = configRef.current;
+    const points = squeezeMomentum(
+      c,
+      cfg.sqzmomLength,
+      cfg.sqzmomMult,
+      cfg.sqzmomLengthKC,
+      cfg.sqzmomMultKC,
+      cfg.sqzmomUseTrueRange
+    );
+
+    // Mapear histograma con colores dinámicos
+    const histData = points.map((p, i) => {
+      const val = p.val;
+      const prevVal = i > 0 ? points[i - 1].val : val;
+      let color = cfg.sqzmomColor0; // verde brillante
+      if (val > 0) {
+        if (val > prevVal) {
+          color = cfg.sqzmomColor0; // verde brillante
+        } else {
+          color = cfg.sqzmomColor1; // verde oscuro
+        }
+      } else {
+        if (val < prevVal) {
+          color = cfg.sqzmomColor2; // rojo brillante
+        } else {
+          color = cfg.sqzmomColor3; // rojo oscuro
+        }
+      }
+      return {
+        time: p.time as UTCTimestamp,
+        value: val,
+        color,
+      };
+    });
+
+    sqzmomHistRef.current.setData(histData);
+
+    // Mapear cruces de squeeze en 0
+    if (sqzmomSqzRef.current) {
+      const sqzData = points.map((p) => ({
+        time: p.time as UTCTimestamp,
+        value: 0,
+      }));
+      sqzmomSqzRef.current.setData(sqzData);
+
+      // Marcadores (noSqz = azul, sqzOn = negro, sqzOff = gris)
+      const markers = points.map((p) => {
+        let color = cfg.sqzmomSqzNo;
+        if (p.isSqzOn) {
+          color = cfg.sqzmomSqzOn;
+        } else if (p.isSqzOff) {
+          color = cfg.sqzmomSqzOff;
+        }
+        return {
+          time: p.time as UTCTimestamp,
+          position: "inSeries" as const,
+          shape: "circle" as const,
+          color,
+          size: 0.5,
+        };
+      });
+      (sqzmomSqzRef.current as any).setMarkers(markers);
+    }
+
+    const last = points.at(-1);
+    setLastValues((prev) => ({
+      ...prev,
+      sqzmom: last?.val,
+    }));
+  }
+
   // Load historical data + subscribe live
   useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -1576,6 +1726,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         updateADX();
         updateRCI();
         updateStoch();
+        updateSqzMom();
 
         // Smart auto-fit: show a tailored number of recent bars so the chart
         // looks well-proportioned regardless of timeframe or symbol.
@@ -1593,6 +1744,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           adxRef.current?.priceScale().applyOptions({ autoScale: true });
           rci1Ref.current?.priceScale().applyOptions({ autoScale: true });
           stochKRef.current?.priceScale().applyOptions({ autoScale: true });
+          sqzmomHistRef.current?.priceScale().applyOptions({ autoScale: true });
         }
         requestAnimationFrame(() => recomputePaneOffsets());
 
@@ -1641,6 +1793,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             updateADX();
             updateRCI();
             updateStoch();
+            updateSqzMom();
             const prev = arr[arr.length - 2] ?? lastCandle;
             setLastPrice({
               value: k.close,
@@ -1984,6 +2137,22 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onMoveDown={() => handleMovePane("stoch", "down")}
             />
           )}
+          {indicators.sqzmom && sqzmomPaneIdx === 0 && (
+        <IndicatorPill
+          name={`SQZMOM_LB`}
+          value={
+            lastValues.sqzmom !== undefined
+              ? lastValues.sqzmom.toFixed(4)
+              : undefined
+          }
+          color={INDICATOR_COLORS.sqzmom}
+          hidden={hidden.sqzmom}
+          onToggleHide={() => toggleHidden("sqzmom")}
+          onSettings={() => setSettingsTarget("sqzmom")}
+          onRemove={() => removeIndicator("sqzmom")}
+          onMoveDown={() => handleMovePane("sqzmom", "down")}
+        />
+      )}
         </div>
       </div>
 
@@ -2125,6 +2294,28 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("stoch")}
               onMoveUp={currentPane !== "main" ? () => handleMovePane("stoch", "up") : undefined}
               onMoveDown={currentPane !== "stoch" ? () => handleMovePane("stoch", "down") : undefined}
+            />
+          );
+        }
+
+        if (indicators.sqzmom && sqzmomPaneIdx === paneIdx) {
+          const currentPane = indicatorPanes.sqzmom;
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="sqzmom"
+              name={`SQZMOM_LB`}
+              value={
+                lastValues.sqzmom !== undefined
+                  ? lastValues.sqzmom.toFixed(4)
+                  : undefined
+              }
+              color={INDICATOR_COLORS.sqzmom}
+              hidden={hidden.sqzmom}
+              onToggleHide={() => toggleHidden("sqzmom")}
+              onSettings={() => setSettingsTarget("sqzmom")}
+              onRemove={() => removeIndicator("sqzmom")}
+              onMoveUp={currentPane !== "main" ? () => handleMovePane("sqzmom", "up") : undefined}
+              onMoveDown={currentPane !== "sqzmom" ? () => handleMovePane("sqzmom", "down") : undefined}
             />
           );
         }

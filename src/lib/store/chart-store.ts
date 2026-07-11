@@ -13,7 +13,8 @@ export type IndicatorKey =
   | "volume"
   | "adx"
   | "rci"
-  | "stoch";
+  | "stoch"
+  | "sqzmom";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -32,7 +33,7 @@ export interface ChartProfile {
   hidden: Record<IndicatorKey, boolean>;
   config: IndicatorConfig;
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch", string>;
+  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", string>;
 }
 
 export interface IndicatorConfig {
@@ -93,6 +94,21 @@ export interface IndicatorConfig {
   stochEma2Len: number;
   stochKColor: string;
   stochDColor: string;
+  // Squeeze Momentum configuration
+  sqzmomLength: number;
+  sqzmomMult: number;
+  sqzmomLengthKC: number;
+  sqzmomMultKC: number;
+  sqzmomUseTrueRange: boolean;
+  sqzmomShowHist: boolean;
+  sqzmomColor0: string;
+  sqzmomColor1: string;
+  sqzmomColor2: string;
+  sqzmomColor3: string;
+  sqzmomShowSqz: boolean;
+  sqzmomSqzNo: string;
+  sqzmomSqzOn: string;
+  sqzmomSqzOff: string;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
@@ -153,6 +169,21 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   stochEma2Len: 200,
   stochKColor: "#ffffff",
   stochDColor: "#ffb74d",
+  // Squeeze Momentum defaults
+  sqzmomLength: 20,
+  sqzmomMult: 2.0,
+  sqzmomLengthKC: 20,
+  sqzmomMultKC: 1.5,
+  sqzmomUseTrueRange: true,
+  sqzmomShowHist: true,
+  sqzmomColor0: "#00e676", // verde brillante
+  sqzmomColor1: "#1b5e20", // verde oscuro
+  sqzmomColor2: "#ff5252", // rojo brillante
+  sqzmomColor3: "#8e0000", // rojo oscuro
+  sqzmomShowSqz: true,
+  sqzmomSqzNo: "#0000ff",  // azul (noSqz)
+  sqzmomSqzOn: "#000000",  // negro (sqzOn)
+  sqzmomSqzOff: "#808080", // gris (sqzOff)
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -165,6 +196,7 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   adx: "#ef5350",
   rci: "#26c6da",
   stoch: "#ffb74d",
+  sqzmom: "#00e676",
 };
 
 export const DEFAULT_WATCHLIST = [
@@ -191,7 +223,7 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
   timezone: "UTC" | "Local";
-  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch", string>;
+  indicatorPanes: Record<"rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", string>;
   profiles: Record<string, ChartProfile | null>;
   activeProfileId: string | null;
 
@@ -217,7 +249,7 @@ interface ChartState {
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
   setTimezone: (tz: "UTC" | "Local") => void;
-  moveIndicatorPane: (key: "rsi" | "macd" | "adx" | "rci" | "stoch", targetPane: string) => void;
+  moveIndicatorPane: (key: "rsi" | "macd" | "adx" | "rci" | "stoch" | "sqzmom", targetPane: string) => void;
   saveProfile: (id: string) => void;
   loadProfile: (id: string) => void;
 }
@@ -237,6 +269,7 @@ export const useChartStore = create<ChartState>()(
         adx: false,
         rci: false,
         stoch: false,
+        sqzmom: false,
       },
       hidden: {
         ema20: false,
@@ -248,6 +281,7 @@ export const useChartStore = create<ChartState>()(
         adx: false,
         rci: false,
         stoch: false,
+        sqzmom: false,
       },
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
@@ -258,6 +292,7 @@ export const useChartStore = create<ChartState>()(
         adx: "adx",
         rci: "rci",
         stoch: "stoch",
+        sqzmom: "sqzmom",
       },
       profiles: {
         "1": null,
@@ -364,7 +399,7 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 6,
+      version: 7,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -454,6 +489,25 @@ export const useChartStore = create<ChartState>()(
             }
             if (state.indicatorPanes && state.indicatorPanes.stoch === undefined) {
               state.indicatorPanes = { ...state.indicatorPanes, stoch: "stoch" };
+            }
+            if (state.config) {
+              state.config = {
+                ...DEFAULT_CONFIG,
+                ...state.config,
+              };
+            }
+          }
+        }
+        if (version < 7) {
+          if (state) {
+            if (state.indicators && state.indicators.sqzmom === undefined) {
+              state.indicators = { ...state.indicators, sqzmom: false };
+            }
+            if (state.hidden && state.hidden.sqzmom === undefined) {
+              state.hidden = { ...state.hidden, sqzmom: false };
+            }
+            if (state.indicatorPanes && state.indicatorPanes.sqzmom === undefined) {
+              state.indicatorPanes = { ...state.indicatorPanes, sqzmom: "sqzmom" };
             }
             if (state.config) {
               state.config = {
