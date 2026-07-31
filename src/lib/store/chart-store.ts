@@ -268,10 +268,10 @@ export const useChartStore = create<ChartState>()(
       timezone: "UTC",
       indicatorPanes: {
         rsi: 1,
-        adx: 2,
+        adx: 2,   // mismo panel que sqzmom por defecto
         rci: 3,
         stoch: 4,
-        sqzmom: 5,
+        sqzmom: 2, // comparte panel con adx
       },
       profiles: {
         "1": null,
@@ -288,13 +288,25 @@ export const useChartStore = create<ChartState>()(
       setSymbol: (symbol) => set({ symbol }),
       setTimeframe: (timeframe) => set({ timeframe }),
       toggleIndicator: (key) =>
-        set((s) => ({
-          indicators: { ...s.indicators, [key]: !s.indicators[key] },
-          // When re-adding, ensure not hidden
-          hidden: !s.indicators[key]
-            ? { ...s.hidden, [key]: false }
-            : s.hidden,
-        })),
+        set((s) => {
+          const nowEnabled = !s.indicators[key];
+          const newIndicators = { ...s.indicators, [key]: nowEnabled };
+          const newHidden = nowEnabled ? { ...s.hidden, [key]: false } : s.hidden;
+          // Bug 4: cuando se activa ADX, sincronizarlo al mismo panel que SQZMOM
+          let newPanes = s.indicatorPanes;
+          if (key === 'adx' && nowEnabled) {
+            newPanes = { ...s.indicatorPanes, adx: s.indicatorPanes.sqzmom };
+          }
+          // Y cuando se activa SQZMOM, sincronizar adx al nuevo pane
+          if (key === 'sqzmom' && nowEnabled && s.indicators.adx) {
+            newPanes = { ...s.indicatorPanes, adx: s.indicatorPanes.sqzmom };
+          }
+          return {
+            indicators: newIndicators,
+            hidden: newHidden,
+            indicatorPanes: newPanes,
+          };
+        }),
       removeIndicator: (key) =>
         set((s) => ({
           indicators: { ...s.indicators, [key]: false },
@@ -378,7 +390,7 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 9,
+      version: 10,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -551,7 +563,7 @@ export const useChartStore = create<ChartState>()(
                 adx: 2,
                 rci: 3,
                 stoch: 4,
-                sqzmom: 5,
+                sqzmom: 2, // mismo pane que adx
               };
             }
             if (state.config) {
@@ -567,10 +579,19 @@ export const useChartStore = create<ChartState>()(
                 const profile = state.profiles[key];
                 if (profile) {
                   delete profile.oscillatorOrder;
-                  profile.indicatorPanes = profile.indicatorPanes ?? { rsi: 1, adx: 2, rci: 3, stoch: 4, sqzmom: 5 };
+                  profile.indicatorPanes = profile.indicatorPanes ?? { rsi: 1, adx: 2, rci: 3, stoch: 4, sqzmom: 2 };
                 }
               }
             }
+          }
+        }
+        if (version < 10) {
+          // Forzar sqzmom al mismo pane que adx (pane 2)
+          if (state && state.indicatorPanes) {
+            state.indicatorPanes = {
+              ...state.indicatorPanes,
+              sqzmom: state.indicatorPanes.adx ?? 2,
+            };
           }
         }
         return state;

@@ -15,6 +15,7 @@ interface Props {
   onMoveDown?: () => void;
   order?: number;
   onChangeOrder?: (order: number) => void;
+  onToggleMinimize?: () => void;
 }
 
 export function IndicatorPill({
@@ -29,6 +30,7 @@ export function IndicatorPill({
   onMoveDown,
   order,
   onChangeOrder,
+  onToggleMinimize,
 }: Props) {
   const [minimized, setMinimized] = useState(false);
 
@@ -118,7 +120,10 @@ export function IndicatorPill({
         )}
 
         <button
-          onClick={() => setMinimized(!minimized)}
+          onClick={() => {
+            setMinimized((prev) => !prev);
+            onToggleMinimize?.();
+          }}
           title={minimized ? "Maximizar panel de control" : "Minimizar panel de control"}
           aria-label={minimized ? "Maximizar" : "Minimizar"}
           className="rounded p-0.5 text-tv-text-dim transition-colors hover:bg-tv-panel-hover hover:text-tv-text border-l border-tv-border/40 pl-1 ml-0.5"

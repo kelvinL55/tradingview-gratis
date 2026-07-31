@@ -1577,6 +1577,161 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }));
   }
 
+  // Helpers para extender las líneas de nivel al llegar una vela nueva
+  // Solo actualizan el segundo punto (el último) de cada línea de dos puntos
+  function updateRSI_levelLines() {
+    const c = candlesRef.current;
+    if (c.length === 0) return;
+    const lastT = c[c.length - 1].time as UTCTimestamp;
+    rsi30Ref.current?.update({ time: lastT, value: 30 });
+    rsi50Ref.current?.update({ time: lastT, value: 50 });
+    rsi70Ref.current?.update({ time: lastT, value: 70 });
+  }
+
+  function updateADX_keyLevel() {
+    const c = candlesRef.current;
+    if (c.length === 0 || !adxKeyLevelRef.current) return;
+    const cfg = configRef.current;
+    const lastT = c[c.length - 1].time as UTCTimestamp;
+    adxKeyLevelRef.current.update({ time: lastT, value: cfg.adxKeyLevel });
+  }
+
+  function updateStoch_levelLines() {
+    const c = candlesRef.current;
+    if (c.length === 0) return;
+    const lastT = c[c.length - 1].time as UTCTimestamp;
+    stoch80Ref.current?.update({ time: lastT, value: 80 });
+    stoch20Ref.current?.update({ time: lastT, value: 20 });
+    stoch50Ref.current?.update({ time: lastT, value: 50 });
+  }
+
+  function updateRCI_levelLines() {
+    const c = candlesRef.current;
+    if (c.length === 0) return;
+    const cfg = configRef.current;
+    const lastT = c[c.length - 1].time as UTCTimestamp;
+    rciOverboughtRef.current?.update({ time: lastT, value: cfg.rciOverbought });
+    rciOversoldRef.current?.update({ time: lastT, value: cfg.rciOversold });
+  }
+
+  // Versiones ligeras para actualización en tiempo real (solo último punto)
+  // Se usan en el callback del WS para evitar llamar setData() completo en cada tick
+  function updateLastEMAs(): Partial<LastValues> {
+    const c = candlesRef.current;
+    if (c.length === 0) return {};
+    const cfg = configRef.current;
+    const patch: Partial<LastValues> = {};
+    if (ema20Ref.current) {
+      const data = ema(c, cfg.ema20);
+      const last = data.at(-1);
+      if (last) ema20Ref.current.update({ time: last.time as UTCTimestamp, value: last.value });
+      patch.ema20 = last?.value;
+    }
+    if (ema50Ref.current) {
+      const data = ema(c, cfg.ema50);
+      const last = data.at(-1);
+      if (last) ema50Ref.current.update({ time: last.time as UTCTimestamp, value: last.value });
+      patch.ema50 = last?.value;
+    }
+    if (ema200Ref.current) {
+      const data = ema(c, cfg.ema200);
+      const last = data.at(-1);
+      if (last) ema200Ref.current.update({ time: last.time as UTCTimestamp, value: last.value });
+      patch.ema200 = last?.value;
+    }
+    patch.volume = c.at(-1)?.volume;
+    return patch;
+  }
+
+  function updateLastRSI(): Partial<LastValues> {
+    const c = candlesRef.current;
+    if (c.length === 0 || !rsiRef.current) return {};
+    const cfg = configRef.current;
+    const rsiData = rsi(c, cfg.rsi);
+    const last = rsiData.at(-1);
+    if (!last) return {};
+
+    rsiRef.current.update({ time: last.time as UTCTimestamp, value: last.value });
+    if (rsiBgRef.current) rsiBgRef.current.update({ time: last.time as UTCTimestamp, value: 30 });
+    if (rsiOversoldRef.current) rsiOversoldRef.current.update({ time: last.time as UTCTimestamp, value: last.value });
+    if (rsiOverboughtRef.current) rsiOverboughtRef.current.update({ time: last.time as UTCTimestamp, value: last.value });
+
+    const patch: Partial<LastValues> = { rsi: last.value };
+    const rsiMaType = cfg.rsiMaType ?? "SMA";
+    const rsiMaLength = cfg.rsiMaLength ?? 14;
+    if (rsiMaType !== "None" && rsiMaRef.current) {
+      const maPoints = rsiMaType === "EMA"
+        ? calculateEMA(rsiData, rsiMaLength)
+        : calculateSMA(rsiData, rsiMaLength);
+      const lastMa = maPoints.at(-1);
+      if (lastMa) rsiMaRef.current.update({ time: lastMa.time as UTCTimestamp, value: lastMa.value });
+      patch.rsiMa = lastMa?.value;
+    }
+    return patch;
+  }
+
+  function updateLastADX(): Partial<LastValues> {
+    const c = candlesRef.current;
+    if (c.length === 0 || !adxRef.current) return {};
+    const cfg = configRef.current;
+    const data = adxDmi(c, cfg.dmiLength, cfg.adxLength);
+    const last = data.at(-1);
+    if (!last) return {};
+
+    adxRef.current.update({ time: last.time as UTCTimestamp, value: last.adx });
+    plusDIRef.current?.update({ time: last.time as UTCTimestamp, value: last.plusDI });
+    minusDIRef.current?.update({ time: last.time as UTCTimestamp, value: last.minusDI });
+    return { adx: last.adx, plusDI: last.plusDI, minusDI: last.minusDI };
+  }
+
+  function updateLastRCI(): Partial<LastValues> {
+    const c = candlesRef.current;
+    if (c.length === 0 || !rci1Ref.current) return {};
+    const cfg = configRef.current;
+    const r1 = rci(c, cfg.rciLength1);
+    const r2 = rci(c, cfg.rciLength2);
+    const r3 = rci(c, cfg.rciLength3);
+    const l1 = r1.at(-1);
+    const l2 = r2.at(-1);
+    const l3 = r3.at(-1);
+    if (l1) rci1Ref.current.update({ time: l1.time as UTCTimestamp, value: l1.value });
+    if (l2 && rci2Ref.current) rci2Ref.current.update({ time: l2.time as UTCTimestamp, value: l2.value });
+    if (l3 && rci3Ref.current) rci3Ref.current.update({ time: l3.time as UTCTimestamp, value: l3.value });
+    return { rci1: l1?.value, rci2: l2?.value, rci3: l3?.value };
+  }
+
+  function updateLastStoch(): Partial<LastValues> {
+    const c = candlesRef.current;
+    if (c.length === 0 || !stochKRef.current) return {};
+    const cfg = configRef.current;
+    const data = stochastic(c, cfg.stochPeriodK, cfg.stochSmoothK, cfg.stochPeriodD);
+    const last = data.at(-1);
+    if (!last) return {};
+    stochKRef.current.update({ time: last.time as UTCTimestamp, value: last.k });
+    stochDRef.current?.update({ time: last.time as UTCTimestamp, value: last.d });
+    return { stochK: last.k, stochD: last.d };
+  }
+
+  function updateLastSqzMom(): Partial<LastValues> {
+    const c = candlesRef.current;
+    if (c.length === 0 || !sqzmomHistRef.current) return {};
+    const cfg = configRef.current;
+    const points = squeezeMomentum(c, cfg.sqzmomLength, cfg.sqzmomMult, cfg.sqzmomLengthKC, cfg.sqzmomMultKC, cfg.sqzmomUseTrueRange);
+    const last = points.at(-1);
+    const prev = points.at(-2);
+    if (!last) return {};
+
+    let color = cfg.sqzmomColor0;
+    if (last.val > 0) {
+      color = last.val > (prev?.val ?? last.val) ? cfg.sqzmomColor0 : cfg.sqzmomColor1;
+    } else {
+      color = last.val < (prev?.val ?? last.val) ? cfg.sqzmomColor2 : cfg.sqzmomColor3;
+    }
+    sqzmomHistRef.current.update({ time: last.time as UTCTimestamp, value: last.val, color });
+    if (sqzmomSqzRef.current) sqzmomSqzRef.current.update({ time: last.time as UTCTimestamp, value: 0 });
+    return { sqzmom: last.val };
+  }
+
   // Load historical data + subscribe live
   useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -1652,15 +1807,22 @@ export function PriceChart({ symbol, timeframe }: Props) {
           const totalBars = klines.length;
           const from = Math.max(totalBars - barsToShow, 0);
           const to = totalBars - 1 + 12; // +12 right offset for live candles
-          chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
 
-          // Reset all price scales so they auto-fit vertically to the visible data
-          candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
-          rsiRef.current?.priceScale().applyOptions({ autoScale: true });
-          adxRef.current?.priceScale().applyOptions({ autoScale: true });
-          rci1Ref.current?.priceScale().applyOptions({ autoScale: true });
-          stochKRef.current?.priceScale().applyOptions({ autoScale: true });
-          sqzmomHistRef.current?.priceScale().applyOptions({ autoScale: true });
+          // Bug 3: envolver en doble RAF para garantizar que setData fue procesado
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (!chartRef.current) return;
+              chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
+
+              // Reset all price scales so they auto-fit vertically to the visible data
+              candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
+              rsiRef.current?.priceScale().applyOptions({ autoScale: true });
+              adxRef.current?.priceScale().applyOptions({ autoScale: true });
+              rci1Ref.current?.priceScale().applyOptions({ autoScale: true });
+              stochKRef.current?.priceScale().applyOptions({ autoScale: true });
+              sqzmomHistRef.current?.priceScale().applyOptions({ autoScale: true });
+            });
+          });
         }
         requestAnimationFrame(() => recomputePaneOffsets());
 
@@ -1681,14 +1843,16 @@ export function PriceChart({ symbol, timeframe }: Props) {
             if (!candleSeriesRef.current) return;
             const arr = candlesRef.current;
             const lastCandle = arr[arr.length - 1];
+            const isNewCandle = !lastCandle || k.time > lastCandle.time;
             if (lastCandle && lastCandle.time === k.time) {
               arr[arr.length - 1] = k;
-            } else if (!lastCandle || k.time > lastCandle.time) {
+            } else if (isNewCandle) {
               arr.push(k);
               if (arr.length > 2000) arr.shift();
             } else {
               return;
             }
+            // Actualizar la vela
             candleSeriesRef.current.update({
               time: k.time as UTCTimestamp,
               open: k.open,
@@ -1703,12 +1867,30 @@ export function PriceChart({ symbol, timeframe }: Props) {
                 color: k.close >= k.open ? `${TV_COLORS.green}66` : `${TV_COLORS.red}66`,
               });
             }
-            updateEMAs();
-            updateRSI();
-            updateADX();
-            updateRCI();
-            updateStoch();
-            updateSqzMom();
+            // Actualización atómica de todos los parches de indicadores en un solo dispatch de React
+            const pEma = updateLastEMAs();
+            const pRsi = updateLastRSI();
+            const pAdx = updateLastADX();
+            const pRci = updateLastRCI();
+            const pStoch = updateLastStoch();
+            const pSqz = updateLastSqzMom();
+
+            // Extender líneas de nivel (RSI 30/50/70, ADX keylevel, Stoch 20/50/80, RCI ob/os)
+            updateRSI_levelLines();
+            updateADX_keyLevel();
+            updateStoch_levelLines();
+            updateRCI_levelLines();
+
+            setLastValues((prev) => ({
+              ...prev,
+              ...pEma,
+              ...pRsi,
+              ...pAdx,
+              ...pRci,
+              ...pStoch,
+              ...pSqz,
+            }));
+
             const prev = arr[arr.length - 2] ?? lastCandle;
             setLastPrice({
               value: k.close,
@@ -1839,12 +2021,30 @@ export function PriceChart({ symbol, timeframe }: Props) {
     };
   };
 
+  // Bug 2: helper para obtener tiempo en la coordenada X, con extrapolación para el área futura
+  const getTimeForCoordinate = (x: number): number | null => {
+    if (!chartRef.current) return null;
+    const ts = chartRef.current.timeScale();
+    const t = ts.coordinateToTime(x) as number | null;
+    if (t !== null) return t;
+    // Extrapolación: usamos la posición lógica (bar index) y la última vela
+    const arr = candlesRef.current;
+    if (arr.length === 0) return null;
+    const logical = ts.coordinateToLogical(x);
+    if (logical === null) return null;
+    const lastIdx = arr.length - 1;
+    const lastTime = arr[lastIdx].time;
+    const secPerBar = TF_SECONDS[timeframeRef.current] ?? 60;
+    return lastTime + Math.round(logical - lastIdx) * secPerBar;
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     const coords = getCanvasCoords(e);
     if (!coords || !chartRef.current || !candleSeriesRef.current) return;
 
-    const time = chartRef.current.timeScale().coordinateToTime(coords.x) as number;
+    // Bug 2: usar extrapolación si estamos en área futura
+    const time = getTimeForCoordinate(coords.x);
     const price = candleSeriesRef.current.coordinateToPrice(coords.y);
     if (time === null || price === null) return;
 
@@ -1874,7 +2074,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
     const coords = getCanvasCoords(e);
     if (!coords) return;
 
-    const time = chartRef.current.timeScale().coordinateToTime(coords.x) as number;
+    // Bug 2: usar extrapolación si estamos en área futura
+    const time = getTimeForCoordinate(coords.x);
     const price = candleSeriesRef.current.coordinateToPrice(coords.y);
     if (time === null || price === null) return;
 
@@ -2127,6 +2328,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("ema20")}
               onSettings={() => setSettingsTarget("ema20")}
               onRemove={() => removeIndicator("ema20")}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
           {indicators.ema50 && (
@@ -2138,6 +2340,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("ema50")}
               onSettings={() => setSettingsTarget("ema50")}
               onRemove={() => removeIndicator("ema50")}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
           {indicators.ema200 && (
@@ -2149,6 +2352,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("ema200")}
               onSettings={() => setSettingsTarget("ema200")}
               onRemove={() => removeIndicator("ema200")}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
           {indicators.volume && (
@@ -2160,6 +2364,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleHide={() => toggleHidden("volume")}
               onSettings={() => setSettingsTarget("volume")}
               onRemove={() => removeIndicator("volume")}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
           {indicators.rsi && rsiPaneIdx === 0 && (
@@ -2309,6 +2514,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rsi")}
               order={indicatorPanes.rsi}
               onChangeOrder={(num) => setIndicatorPane("rsi", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );
         }
@@ -2330,6 +2536,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("adx")}
               order={indicatorPanes.adx}
               onChangeOrder={(num) => setIndicatorPane("adx", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );
         }
@@ -2351,6 +2558,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rci")}
               order={indicatorPanes.rci}
               onChangeOrder={(num) => setIndicatorPane("rci", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );
         }
@@ -2389,6 +2597,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("stoch")}
               order={indicatorPanes.stoch}
               onChangeOrder={(num) => setIndicatorPane("stoch", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );
         }
@@ -2410,6 +2619,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("sqzmom")}
               order={indicatorPanes.sqzmom}
               onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );
         }
