@@ -14,10 +14,10 @@ import {
   type IPriceLine,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { fetchKlines } from "@/lib/binance/rest";
-import { getBinanceWS } from "@/lib/binance/ws";
+import { fetchKlines, subscribeExchangeWS, parseSymbolKey } from "@/lib/exchanges/router";
+import type { Candle, Timeframe } from "@/lib/exchanges/types";
 import { ema, rsi, calculateSMA, calculateEMA, adxDmi, rci, stochastic, squeezeMomentum } from "@/lib/indicators";
-import type { Candle, Timeframe } from "@/lib/binance/types";
+import { ExchangeBadge } from "@/components/ui/exchange-badge";
 import {
   INDICATOR_COLORS,
   useChartStore,
@@ -1835,11 +1835,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           });
         }
 
-        const ws = getBinanceWS();
-        unsub = ws.subscribeKline({
-          symbol,
-          interval: timeframe,
-          onCandle: (k) => {
+        unsub = subscribeExchangeWS(symbol, timeframe, (k) => {
             if (!candleSeriesRef.current) return;
             const arr = candlesRef.current;
             const lastCandle = arr[arr.length - 1];
@@ -1896,8 +1892,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               value: k.close,
               pct: prev && prev.close !== 0 ? ((k.close - prev.close) / prev.close) * 100 : 0,
             });
-          },
-        });
+          });
       } catch (e) {
         console.error("Failed to load chart data:", e);
       }
@@ -2268,13 +2263,18 @@ export function PriceChart({ symbol, timeframe }: Props) {
       >
         {/* Row 1: symbol info + OHLC stats inline on hover (fixed height, never wraps) */}
         <div className="flex h-5 flex-nowrap items-center gap-x-3 overflow-hidden whitespace-nowrap">
-          <div className="flex shrink-0 items-center gap-2 text-[13px] font-semibold">
-            <span className="text-tv-text">{symbol}</span>
-            <span className="text-tv-text-muted">·</span>
-            <span className="uppercase text-tv-text-muted">{timeframe}</span>
-            <span className="text-tv-text-muted">·</span>
-            <span className="text-tv-text-muted">Binance</span>
-          </div>
+          {(() => {
+            const parsed = parseSymbolKey(symbol);
+            return (
+              <div className="flex shrink-0 items-center gap-2 text-[13px] font-semibold">
+                <span className="text-tv-text">{parsed.symbol}</span>
+                <span className="text-tv-text-muted">·</span>
+                <span className="uppercase text-tv-text-muted">{timeframe}</span>
+                <span className="text-tv-text-muted">·</span>
+                <ExchangeBadge exchange={parsed.exchange} />
+              </div>
+            );
+          })()}
           {hover && (
             <div className="flex items-center gap-x-3 text-[11px]">
               <span className="text-tv-text-muted">

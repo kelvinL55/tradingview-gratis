@@ -239,11 +239,11 @@ interface ChartState {
 export const useChartStore = create<ChartState>()(
   persist(
     (set) => ({
-      symbol: "BTCUSDT",
-      timeframe: "15m" as Timeframe,
+      symbol: "BINANCE:BTCUSDT",
+      timeframe: "1m" as Timeframe,
       indicators: {
         ema20: true,
-        ema50: true,
+        ema50: false,
         ema200: false,
         rsi: true,
         volume: true,
@@ -592,6 +592,18 @@ export const useChartStore = create<ChartState>()(
               ...state.indicatorPanes,
               sqzmom: state.indicatorPanes.adx ?? 2,
             };
+          }
+        }
+        if (version < 11) {
+          if (state) {
+            if (state.symbol && !state.symbol.includes(":")) {
+              state.symbol = `BINANCE:${state.symbol}`;
+            }
+            if (Array.isArray(state.watchlist)) {
+              state.watchlist = state.watchlist.map((s: string) =>
+                s.includes(":") ? s : `BINANCE:${s}`,
+              );
+            }
           }
         }
         return state;
