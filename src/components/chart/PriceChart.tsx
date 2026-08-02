@@ -54,6 +54,8 @@ interface Props {
   timeframe: Timeframe;
 }
 
+const RIGHT_OFFSET = 20;
+
 // Number of bars to show in the visible area when auto-fitting, per timeframe.
 // Smaller timeframes show fewer bars (they're denser), bigger ones show more.
 const VISIBLE_BARS: Record<string, number> = {
@@ -382,7 +384,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         borderColor: TV_COLORS.border,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 12,
+        rightOffset: RIGHT_OFFSET,
         barSpacing: 8,
         tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
           const d = new Date(time * 1000);
@@ -1826,7 +1828,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           const barsToShow = VISIBLE_BARS[timeframe] ?? 200;
           const totalBars = klines.length;
           const from = Math.max(totalBars - barsToShow, 0);
-          const to = totalBars - 1 + 12; // +12 right offset for live candles
+          const to = totalBars - 1 + RIGHT_OFFSET; // right offset for live candles & drawings
 
           // Bug 3: envolver en doble RAF para garantizar que setData fue procesado
           requestAnimationFrame(() => {
@@ -1936,6 +1938,42 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
 
 
+  const getTimeX = (time: number): number | null => {
+    if (!chartRef.current) return null;
+    const ts = chartRef.current.timeScale();
+    const directX = ts.timeToCoordinate(time as any);
+    if (directX !== null) return directX;
+
+    const arr = candlesRef.current;
+    if (arr.length === 0) return null;
+    const lastCandle = arr[arr.length - 1];
+    if (!lastCandle) return null;
+
+    const secPerBar = TF_SECONDS[timeframeRef.current] ?? 60;
+    const lastLogical = arr.length - 1;
+    const deltaSeconds = time - lastCandle.time;
+    const deltaLogical = deltaSeconds / secPerBar;
+    const logicalIndex = lastLogical + deltaLogical;
+    return ts.logicalToCoordinate(logicalIndex as any);
+  };
+
+  // Helper para obtener tiempo en la coordenada X, con extrapolación fluida para el área futura
+  const getTimeForCoordinate = (x: number): number | null => {
+    if (!chartRef.current) return null;
+    const ts = chartRef.current.timeScale();
+    const t = ts.coordinateToTime(x) as number | null;
+    if (t !== null) return t;
+    // Extrapolación: usamos la posición lógica (bar index) y la última vela
+    const arr = candlesRef.current;
+    if (arr.length === 0) return null;
+    const logical = ts.coordinateToLogical(x);
+    if (logical === null) return null;
+    const lastIdx = arr.length - 1;
+    const lastTime = arr[lastIdx].time;
+    const secPerBar = TF_SECONDS[timeframeRef.current] ?? 60;
+    return lastTime + (logical - lastIdx) * secPerBar;
+  };
+
   let measureRender: React.ReactNode = null;
   if (
     measure.a &&
@@ -1943,9 +1981,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
     chartRef.current &&
     candleSeriesRef.current
   ) {
-    const ts = chartRef.current.timeScale();
-    const aX = ts.timeToCoordinate(measure.a.time as UTCTimestamp);
-    const bX = ts.timeToCoordinate(measure.b.time as UTCTimestamp);
+    const aX = getTimeX(measure.a.time);
+    const bX = getTimeX(measure.b.time);
     const aY = candleSeriesRef.current.priceToCoordinate(measure.a.price);
     const bY = candleSeriesRef.current.priceToCoordinate(measure.b.price);
 
@@ -2036,22 +2073,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     };
   };
 
-  // Bug 2: helper para obtener tiempo en la coordenada X, con extrapolación para el área futura
-  const getTimeForCoordinate = (x: number): number | null => {
-    if (!chartRef.current) return null;
-    const ts = chartRef.current.timeScale();
-    const t = ts.coordinateToTime(x) as number | null;
-    if (t !== null) return t;
-    // Extrapolación: usamos la posición lógica (bar index) y la última vela
-    const arr = candlesRef.current;
-    if (arr.length === 0) return null;
-    const logical = ts.coordinateToLogical(x);
-    if (logical === null) return null;
-    const lastIdx = arr.length - 1;
-    const lastTime = arr[lastIdx].time;
-    const secPerBar = TF_SECONDS[timeframeRef.current] ?? 60;
-    return lastTime + Math.round(logical - lastIdx) * secPerBar;
-  };
+
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
@@ -2147,7 +2169,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         ctx.beginPath();
         let first = true;
         for (const pt of item.points) {
-          const x = chart.timeScale().timeToCoordinate(pt.time as any);
+          const x = getTimeX(pt.time);
           const y = candleSeries.priceToCoordinate(pt.price);
           if (x !== null && y !== null) {
             if (first) {
@@ -2162,9 +2184,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       } else if (item.type === "rectangle" && item.points.length >= 2) {
         const p1 = item.points[0];
         const p2 = item.points[1];
-        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const x1 = getTimeX(p1.time);
         const y1 = candleSeries.priceToCoordinate(p1.price);
-        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const x2 = getTimeX(p2.time);
         const y2 = candleSeries.priceToCoordinate(p2.price);
         if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
            ctx.beginPath();
@@ -2176,9 +2198,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       } else if (item.type === "circle" && item.points.length >= 2) {
         const p1 = item.points[0];
         const p2 = item.points[1];
-        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const x1 = getTimeX(p1.time);
         const y1 = candleSeries.priceToCoordinate(p1.price);
-        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const x2 = getTimeX(p2.time);
         const y2 = candleSeries.priceToCoordinate(p2.price);
         if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
            const rx = Math.abs(x2 - x1);
@@ -2192,9 +2214,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       } else if (item.type === "arrow" && item.points.length >= 2) {
         const p1 = item.points[0];
         const p2 = item.points[1];
-        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const x1 = getTimeX(p1.time);
         const y1 = candleSeries.priceToCoordinate(p1.price);
-        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const x2 = getTimeX(p2.time);
         const y2 = candleSeries.priceToCoordinate(p2.price);
         if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
            ctx.beginPath();
@@ -2214,9 +2236,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       } else if (item.type === "triangle" && item.points.length >= 2) {
         const p1 = item.points[0];
         const p2 = item.points[1];
-        const x1 = chart.timeScale().timeToCoordinate(p1.time as any);
+        const x1 = getTimeX(p1.time);
         const y1 = candleSeries.priceToCoordinate(p1.price);
-        const x2 = chart.timeScale().timeToCoordinate(p2.time as any);
+        const x2 = getTimeX(p2.time);
         const y2 = candleSeries.priceToCoordinate(p2.price);
         if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
            ctx.beginPath();
