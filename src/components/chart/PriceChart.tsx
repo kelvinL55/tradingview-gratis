@@ -140,8 +140,6 @@ interface LastValues {
   rci3?: number;
   stochK?: number;
   stochD?: number;
-  stochEma1?: number;
-  stochEma2?: number;
   sqzmom?: number;
 }
 
@@ -198,6 +196,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const stoch80Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const sqzmomHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const sqzmomSqzRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const stochPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
+  const rsiPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
+  const sqzmomPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
+  const adxPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
+  const rciPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
   const candlesRef = useRef<Candle[]>([]);
 
   // Drawing tools state and refs
@@ -250,13 +253,13 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [renderTick, setRenderTick] = useState(0);
   const [extraLabel, setExtraLabel] = useState<{ x: number; text: string } | null>(null);
 
-  // Dynamic pane calculations based on indicatorPanes numbers (1 to 5)
+  // Dynamic pane calculations based on indicatorPanes numbers
   const activePaneNums = new Set<number>();
+  if (indicators.stoch) activePaneNums.add(indicatorPanes.stoch);
   if (indicators.rsi) activePaneNums.add(indicatorPanes.rsi);
+  if (indicators.sqzmom) activePaneNums.add(indicatorPanes.sqzmom);
   if (indicators.adx) activePaneNums.add(indicatorPanes.adx);
   if (indicators.rci) activePaneNums.add(indicatorPanes.rci);
-  if (indicators.stoch) activePaneNums.add(indicatorPanes.stoch);
-  if (indicators.sqzmom) activePaneNums.add(indicatorPanes.sqzmom);
 
   const sortedActivePanes = Array.from(activePaneNums).sort((a, b) => a - b);
 
@@ -265,33 +268,40 @@ export function PriceChart({ symbol, timeframe }: Props) {
     return idx === -1 ? 0 : idx + 1; // 1 + index para dejar el 0 al precio principal
   };
 
+  const stochPaneIdx = indicators.stoch ? getPaneIndexForNum(indicatorPanes.stoch) : 0;
   const rsiPaneIdx = indicators.rsi ? getPaneIndexForNum(indicatorPanes.rsi) : 0;
+  const sqzmomPaneIdx = indicators.sqzmom ? getPaneIndexForNum(indicatorPanes.sqzmom) : 0;
   const adxPaneIdx = indicators.adx ? getPaneIndexForNum(indicatorPanes.adx) : 0;
   const rciPaneIdx = indicators.rci ? getPaneIndexForNum(indicatorPanes.rci) : 0;
-  const stochPaneIdx = indicators.stoch ? getPaneIndexForNum(indicatorPanes.stoch) : 0;
-  const sqzmomPaneIdx = indicators.sqzmom ? getPaneIndexForNum(indicatorPanes.sqzmom) : 0;
 
   // Escala izquierda o derecha según si hay indicadores superpuestos en el mismo panel
-  const getScaleId = (key: "rsi" | "adx" | "rci" | "stoch" | "sqzmom") => {
+  const getScaleId = (key: "stoch" | "rsi" | "sqzmom" | "adx" | "rci") => {
     if (!indicators[key]) return "right";
     const paneNum = indicatorPanes[key];
-    const siblings: ("rsi" | "adx" | "rci" | "stoch" | "sqzmom")[] = [];
+    // Cuando Squeeze Momentum y ADX/DMI comparten panel, el ADX/DMI se asigna al eje Y derecho (visible, para leer niveles como 23, 20, 40)
+    // y Squeeze Momentum se asigna al eje Y izquierdo de forma independiente para que coexistan armónicamente sin deformarse.
+    if (key === "sqzmom" && indicators.adx && indicatorPanes.adx === paneNum) {
+      return "left";
+    }
+    if (key === "adx" && indicators.sqzmom && indicatorPanes.sqzmom === paneNum) {
+      return "right";
+    }
+    const siblings: ("stoch" | "rsi" | "sqzmom" | "adx" | "rci")[] = [];
+    if (indicators.stoch && indicatorPanes.stoch === paneNum) siblings.push("stoch");
     if (indicators.rsi && indicatorPanes.rsi === paneNum) siblings.push("rsi");
+    if (indicators.sqzmom && indicatorPanes.sqzmom === paneNum) siblings.push("sqzmom");
     if (indicators.adx && indicatorPanes.adx === paneNum) siblings.push("adx");
     if (indicators.rci && indicatorPanes.rci === paneNum) siblings.push("rci");
-    if (indicators.stoch && indicatorPanes.stoch === paneNum) siblings.push("stoch");
-    if (indicators.sqzmom && indicatorPanes.sqzmom === paneNum) siblings.push("sqzmom");
 
     const idx = siblings.indexOf(key);
-    // El primero usa "right", el segundo usa "left", los siguientes comparten "right"
-    return idx === 1 ? "left" : "right";
+    return idx <= 0 ? "right" : "left";
   };
 
+  const stochScaleId = getScaleId("stoch");
   const rsiScaleId = getScaleId("rsi");
+  const sqzmomScaleId = getScaleId("sqzmom");
   const adxScaleId = getScaleId("adx");
   const rciScaleId = getScaleId("rci");
-  const stochScaleId = getScaleId("stoch");
-  const sqzmomScaleId = getScaleId("sqzmom");
   const measureRef = useRef(measure);
   measureRef.current = measure;
   const timeframeRef = useRef(timeframe);
@@ -595,12 +605,131 @@ export function PriceChart({ symbol, timeframe }: Props) {
     requestAnimationFrame(() => recomputePaneOffsets());
   }, [indicators.volume]);
 
-  // RSI pane
+  // PANEL 1: Estocástico (Stoch) independiente
   useEffect(() => {
     if (!chartRef.current) return;
+    const paneOrScaleChanged = stochPaneTracker.current && (stochPaneTracker.current.paneIdx !== stochPaneIdx || stochPaneTracker.current.scaleId !== stochScaleId);
+    if ((!indicators.stoch || paneOrScaleChanged) && stochKRef.current && chartRef.current) {
+      chartRef.current.removeSeries(stochKRef.current);
+      if (stochDRef.current) chartRef.current.removeSeries(stochDRef.current);
+      if (stoch80Ref.current) chartRef.current.removeSeries(stoch80Ref.current);
+      if (stoch20Ref.current) chartRef.current.removeSeries(stoch20Ref.current);
+      if (stoch50Ref.current) chartRef.current.removeSeries(stoch50Ref.current);
+      stochKRef.current = null;
+      stochDRef.current = null;
+      stoch80Ref.current = null;
+      stoch20Ref.current = null;
+      stoch50Ref.current = null;
+      stochPaneTracker.current = null;
+    }
+    if (indicators.stoch && !stochKRef.current) {
+      const kColor = configRef.current.stochKColor ?? "#ffffff";
+      const dColor = configRef.current.stochDColor ?? "#ffb74d";
+
+      const kSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: kColor,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const dSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: dColor,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const s80 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "#ffb74d",
+          lineWidth: 1,
+          lineStyle: 0, // solid
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const s20 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "#ffb74d",
+          lineWidth: 1,
+          lineStyle: 0, // solid
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+      const s50 = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: `${TV_COLORS.textMuted}80`,
+          lineWidth: 1,
+          lineStyle: 2, // dotted
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: stochScaleId,
+        },
+        stochPaneIdx,
+      );
+
+      stochKRef.current = kSeries;
+      stochDRef.current = dSeries;
+      stoch80Ref.current = s80;
+      stoch20Ref.current = s20;
+      stoch50Ref.current = s50;
+      stochPaneTracker.current = { paneIdx: stochPaneIdx, scaleId: stochScaleId };
+
+      try {
+        if (stochPaneIdx > 0) {
+          chartRef.current.panes()[stochPaneIdx]?.setStretchFactor(1);
+        }
+        chartRef.current.panes()[0]?.setStretchFactor(3);
+      } catch {}
+      updateStoch();
+    }
+    requestAnimationFrame(() => recomputePaneOffsets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.stoch, stochPaneIdx, stochScaleId, indicatorPanes.stoch]);
+
+  // PANEL 2: RSI independiente (sin fusionarse con estocástico ni ADX)
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const paneOrScaleChanged = rsiPaneTracker.current && (rsiPaneTracker.current.paneIdx !== rsiPaneIdx || rsiPaneTracker.current.scaleId !== rsiScaleId);
+    if ((!indicators.rsi || paneOrScaleChanged) && rsiRef.current && chartRef.current) {
+      chartRef.current.removeSeries(rsiRef.current);
+      if (rsiBgRef.current) chartRef.current.removeSeries(rsiBgRef.current);
+      if (rsiOversoldRef.current) chartRef.current.removeSeries(rsiOversoldRef.current);
+      if (rsiOverboughtRef.current) chartRef.current.removeSeries(rsiOverboughtRef.current);
+      if (rsi30Ref.current) chartRef.current.removeSeries(rsi30Ref.current);
+      if (rsi50Ref.current) chartRef.current.removeSeries(rsi50Ref.current);
+      if (rsi70Ref.current) chartRef.current.removeSeries(rsi70Ref.current);
+      if (rsiMaRef.current) chartRef.current.removeSeries(rsiMaRef.current);
+      rsiRef.current = null;
+      rsiBgRef.current = null;
+      rsiOversoldRef.current = null;
+      rsiOverboughtRef.current = null;
+      rsi30Ref.current = null;
+      rsi50Ref.current = null;
+      rsi70Ref.current = null;
+      rsiMaRef.current = null;
+      rsiPaneTracker.current = null;
+    }
     if (indicators.rsi && !rsiRef.current) {
-      const rColor = configRef.current.rsiColor ?? "#7e57c2";
-      const rMaColor = configRef.current.rsiMaColor ?? "#ffb74d";
+      const rColor = configRef.current.rsiColor ?? "#ffffff";
+      const rMaColor = configRef.current.rsiMaColor ?? "#26c6da";
 
       // 1. Relleno de sobreventa (Baseline en 30) - Se agrega primero para quedar al fondo
       const rOversold = chartRef.current.addSeries(
@@ -726,6 +855,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       rsi50Ref.current = r50;
       rsi70Ref.current = r70;
       rsiMaRef.current = rma;
+      rsiPaneTracker.current = { paneIdx: rsiPaneIdx, scaleId: rsiScaleId };
       try {
         if (rsiPaneIdx > 0) {
           chartRef.current.panes()[rsiPaneIdx]?.setStretchFactor(1);
@@ -733,35 +863,79 @@ export function PriceChart({ symbol, timeframe }: Props) {
         chartRef.current.panes()[0]?.setStretchFactor(3);
       } catch {}
       updateRSI();
-    } else if (!indicators.rsi && rsiRef.current && chartRef.current) {
-      chartRef.current.removeSeries(rsiRef.current);
-      if (rsiBgRef.current) chartRef.current.removeSeries(rsiBgRef.current);
-      if (rsiOversoldRef.current) chartRef.current.removeSeries(rsiOversoldRef.current);
-      if (rsiOverboughtRef.current) chartRef.current.removeSeries(rsiOverboughtRef.current);
-      if (rsi30Ref.current) chartRef.current.removeSeries(rsi30Ref.current);
-      if (rsi50Ref.current) chartRef.current.removeSeries(rsi50Ref.current);
-      if (rsi70Ref.current) chartRef.current.removeSeries(rsi70Ref.current);
-      if (rsiMaRef.current) chartRef.current.removeSeries(rsiMaRef.current);
-      rsiRef.current = null;
-      rsiBgRef.current = null;
-      rsiOversoldRef.current = null;
-      rsiOverboughtRef.current = null;
-      rsi30Ref.current = null;
-      rsi50Ref.current = null;
-      rsi70Ref.current = null;
-      rsiMaRef.current = null;
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators.rsi, rsiPaneIdx, rsiScaleId, indicatorPanes.rsi]);
 
-
-
-  // ADX/DMI pane
+  // PANEL 3 (COMBINADO - FONDO): Squeeze Momentum pane
+  // Se inicializa antes de ADX para que el histograma actúe como base/fondo en el canvas
   useEffect(() => {
     if (!chartRef.current) return;
+    const paneOrScaleChanged = sqzmomPaneTracker.current && (sqzmomPaneTracker.current.paneIdx !== sqzmomPaneIdx || sqzmomPaneTracker.current.scaleId !== sqzmomScaleId);
+    if ((!indicators.sqzmom || paneOrScaleChanged) && sqzmomHistRef.current && chartRef.current) {
+      chartRef.current.removeSeries(sqzmomHistRef.current);
+      if (sqzmomSqzRef.current) chartRef.current.removeSeries(sqzmomSqzRef.current);
+      sqzmomHistRef.current = null;
+      sqzmomSqzRef.current = null;
+      sqzmomPaneTracker.current = null;
+    }
+    if (indicators.sqzmom && !sqzmomHistRef.current) {
+      const histSeries = chartRef.current.addSeries(
+        HistogramSeries,
+        {
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: sqzmomScaleId,
+        },
+        sqzmomPaneIdx,
+      );
+
+      const sqzSeries = chartRef.current.addSeries(
+        LineSeries,
+        {
+          color: "transparent",
+          priceLineVisible: false,
+          lastValueVisible: false,
+          priceScaleId: sqzmomScaleId,
+        },
+        sqzmomPaneIdx,
+      );
+
+      sqzmomHistRef.current = histSeries;
+      sqzmomSqzRef.current = sqzSeries;
+      sqzmomPaneTracker.current = { paneIdx: sqzmomPaneIdx, scaleId: sqzmomScaleId };
+
+      try {
+        if (sqzmomPaneIdx > 0) {
+          chartRef.current.panes()[sqzmomPaneIdx]?.setStretchFactor(1);
+        }
+        chartRef.current.panes()[0]?.setStretchFactor(3);
+      } catch {}
+      updateSqzMom();
+    }
+    requestAnimationFrame(() => recomputePaneOffsets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.sqzmom, sqzmomPaneIdx, sqzmomScaleId, indicatorPanes.sqzmom]);
+
+  // PANEL 3 (COMBINADO - SUPERPOSICIÓN): ADX/DMI pane
+  // Se inicializa después del histograma para que la línea blanca gruesa se renderice sobre el Squeeze Momentum
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const paneOrScaleChanged = adxPaneTracker.current && (adxPaneTracker.current.paneIdx !== adxPaneIdx || adxPaneTracker.current.scaleId !== adxScaleId);
+    if ((!indicators.adx || paneOrScaleChanged) && adxRef.current && chartRef.current) {
+      chartRef.current.removeSeries(adxRef.current);
+      if (plusDIRef.current) chartRef.current.removeSeries(plusDIRef.current);
+      if (minusDIRef.current) chartRef.current.removeSeries(minusDIRef.current);
+      if (adxKeyLevelRef.current) chartRef.current.removeSeries(adxKeyLevelRef.current);
+      adxRef.current = null;
+      plusDIRef.current = null;
+      minusDIRef.current = null;
+      adxKeyLevelRef.current = null;
+      adxPaneTracker.current = null;
+    }
     if (indicators.adx && !adxRef.current) {
-      const aColor = configRef.current.adxColor ?? "#ef5350";
+      const aColor = configRef.current.adxColor ?? "#ffffff";
       const pColor = configRef.current.plusDIColor ?? "#2196f3";
       const mColor = configRef.current.minusDIColor ?? "#787b86";
 
@@ -815,6 +989,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       plusDIRef.current = plusDISeries;
       minusDIRef.current = minusDISeries;
       adxKeyLevelRef.current = adxKeyLevelSeries;
+      adxPaneTracker.current = { paneIdx: adxPaneIdx, scaleId: adxScaleId };
 
       try {
         if (adxPaneIdx > 0) {
@@ -823,23 +998,28 @@ export function PriceChart({ symbol, timeframe }: Props) {
         chartRef.current.panes()[0]?.setStretchFactor(3);
       } catch {}
       updateADX();
-    } else if (!indicators.adx && adxRef.current && chartRef.current) {
-      chartRef.current.removeSeries(adxRef.current);
-      if (plusDIRef.current) chartRef.current.removeSeries(plusDIRef.current);
-      if (minusDIRef.current) chartRef.current.removeSeries(minusDIRef.current);
-      if (adxKeyLevelRef.current) chartRef.current.removeSeries(adxKeyLevelRef.current);
-      adxRef.current = null;
-      plusDIRef.current = null;
-      minusDIRef.current = null;
-      adxKeyLevelRef.current = null;
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators.adx, adxPaneIdx, adxScaleId, indicatorPanes.adx]);
 
-  // RCI pane
+  // PANEL 4: RCI pane independiente
   useEffect(() => {
     if (!chartRef.current) return;
+    const paneOrScaleChanged = rciPaneTracker.current && (rciPaneTracker.current.paneIdx !== rciPaneIdx || rciPaneTracker.current.scaleId !== rciScaleId);
+    if ((!indicators.rci || paneOrScaleChanged) && rci1Ref.current && chartRef.current) {
+      chartRef.current.removeSeries(rci1Ref.current);
+      if (rci2Ref.current) chartRef.current.removeSeries(rci2Ref.current);
+      if (rci3Ref.current) chartRef.current.removeSeries(rci3Ref.current);
+      if (rciOverboughtRef.current) chartRef.current.removeSeries(rciOverboughtRef.current);
+      if (rciOversoldRef.current) chartRef.current.removeSeries(rciOversoldRef.current);
+      rci1Ref.current = null;
+      rci2Ref.current = null;
+      rci3Ref.current = null;
+      rciOverboughtRef.current = null;
+      rciOversoldRef.current = null;
+      rciPaneTracker.current = null;
+    }
     if (indicators.rci && !rci1Ref.current) {
       const rci1 = chartRef.current.addSeries(
         LineSeries,
@@ -908,6 +1088,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       rci3Ref.current = rci3;
       rciOverboughtRef.current = ob;
       rciOversoldRef.current = os;
+      rciPaneTracker.current = { paneIdx: rciPaneIdx, scaleId: rciScaleId };
 
       try {
         if (rciPaneIdx > 0) {
@@ -916,165 +1097,10 @@ export function PriceChart({ symbol, timeframe }: Props) {
         chartRef.current.panes()[0]?.setStretchFactor(3);
       } catch {}
       updateRCI();
-    } else if (!indicators.rci && rci1Ref.current && chartRef.current) {
-      chartRef.current.removeSeries(rci1Ref.current);
-      if (rci2Ref.current) chartRef.current.removeSeries(rci2Ref.current);
-      if (rci3Ref.current) chartRef.current.removeSeries(rci3Ref.current);
-      if (rciOverboughtRef.current) chartRef.current.removeSeries(rciOverboughtRef.current);
-      if (rciOversoldRef.current) chartRef.current.removeSeries(rciOversoldRef.current);
-      rci1Ref.current = null;
-      rci2Ref.current = null;
-      rci3Ref.current = null;
-      rciOverboughtRef.current = null;
-      rciOversoldRef.current = null;
     }
     requestAnimationFrame(() => recomputePaneOffsets());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.rci, rciPaneIdx, rciScaleId]);
-
-  // Stochastic pane
-  useEffect(() => {
-    if (!chartRef.current) return;
-    if (indicators.stoch && !stochKRef.current) {
-      const kColor = configRef.current.stochKColor ?? "#ffffff";
-      const dColor = configRef.current.stochDColor ?? "#ffb74d";
-
-      const kSeries = chartRef.current.addSeries(
-        LineSeries,
-        {
-          color: kColor,
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          priceScaleId: stochScaleId,
-        },
-        stochPaneIdx,
-      );
-      const dSeries = chartRef.current.addSeries(
-        LineSeries,
-        {
-          color: dColor,
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          priceScaleId: stochScaleId,
-        },
-        stochPaneIdx,
-      );
-      const s80 = chartRef.current.addSeries(
-        LineSeries,
-        {
-          color: "#ffb74d",
-          lineWidth: 1,
-          lineStyle: 0, // solid
-          priceLineVisible: false,
-          lastValueVisible: false,
-          priceScaleId: stochScaleId,
-        },
-        stochPaneIdx,
-      );
-      const s20 = chartRef.current.addSeries(
-        LineSeries,
-        {
-          color: "#ffb74d",
-          lineWidth: 1,
-          lineStyle: 0, // solid
-          priceLineVisible: false,
-          lastValueVisible: false,
-          priceScaleId: stochScaleId,
-        },
-        stochPaneIdx,
-      );
-      const s50 = chartRef.current.addSeries(
-        LineSeries,
-        {
-          color: `${TV_COLORS.textMuted}80`,
-          lineWidth: 1,
-          lineStyle: 2, // dotted
-          priceLineVisible: false,
-          lastValueVisible: false,
-          priceScaleId: stochScaleId,
-        },
-        stochPaneIdx,
-      );
-
-      stochKRef.current = kSeries;
-      stochDRef.current = dSeries;
-      stoch80Ref.current = s80;
-      stoch20Ref.current = s20;
-      stoch50Ref.current = s50;
-
-      try {
-        if (stochPaneIdx > 0) {
-          chartRef.current.panes()[stochPaneIdx]?.setStretchFactor(1);
-        }
-        chartRef.current.panes()[0]?.setStretchFactor(3);
-      } catch {}
-      updateStoch();
-    } else if (!indicators.stoch && stochKRef.current && chartRef.current) {
-      chartRef.current.removeSeries(stochKRef.current);
-      if (stochDRef.current) chartRef.current.removeSeries(stochDRef.current);
-      if (stoch80Ref.current) chartRef.current.removeSeries(stoch80Ref.current);
-      if (stoch20Ref.current) chartRef.current.removeSeries(stoch20Ref.current);
-      if (stoch80Ref.current) chartRef.current.removeSeries(stoch80Ref.current);
-      if (sqzmomHistRef.current) chartRef.current.removeSeries(sqzmomHistRef.current);
-      if (sqzmomSqzRef.current) chartRef.current.removeSeries(sqzmomSqzRef.current);
-      stochKRef.current = null;
-      stochDRef.current = null;
-      stoch20Ref.current = null;
-      stoch50Ref.current = null;
-      stoch80Ref.current = null;
-      sqzmomHistRef.current = null;
-      sqzmomSqzRef.current = null;
-    }
-    requestAnimationFrame(() => recomputePaneOffsets());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.stoch, stochPaneIdx, stochScaleId]);
-
-  // Squeeze Momentum pane
-  useEffect(() => {
-    if (!chartRef.current) return;
-    if (indicators.sqzmom && !sqzmomHistRef.current) {
-      const histSeries = chartRef.current.addSeries(
-        HistogramSeries,
-        {
-          priceLineVisible: false,
-          lastValueVisible: false,
-          priceScaleId: sqzmomScaleId,
-        },
-        sqzmomPaneIdx,
-      );
-
-      const sqzSeries = chartRef.current.addSeries(
-        LineSeries,
-        {
-          color: "transparent",
-          priceLineVisible: false,
-          lastValueVisible: false,
-          priceScaleId: sqzmomScaleId,
-        },
-        sqzmomPaneIdx,
-      );
-
-      sqzmomHistRef.current = histSeries;
-      sqzmomSqzRef.current = sqzSeries;
-
-      try {
-        if (sqzmomPaneIdx > 0) {
-          chartRef.current.panes()[sqzmomPaneIdx]?.setStretchFactor(1);
-        }
-        chartRef.current.panes()[0]?.setStretchFactor(3);
-      } catch {}
-      updateSqzMom();
-    } else if (!indicators.sqzmom && sqzmomHistRef.current && chartRef.current) {
-      chartRef.current.removeSeries(sqzmomHistRef.current);
-      if (sqzmomSqzRef.current) chartRef.current.removeSeries(sqzmomSqzRef.current);
-      sqzmomHistRef.current = null;
-      sqzmomSqzRef.current = null;
-    }
-    requestAnimationFrame(() => recomputePaneOffsets());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators.sqzmom, sqzmomPaneIdx, sqzmomScaleId, indicatorPanes.sqzmom]);
+  }, [indicators.rci, rciPaneIdx, rciScaleId, indicatorPanes.rci]);
 
   // Recompute offsets when indicator visibility or pane assignment changes
   useEffect(() => {
@@ -1208,7 +1234,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
   useEffect(() => {
     updateStoch();
-  }, [config.stochPeriodK, config.stochSmoothK, config.stochPeriodD, config.stochEma1Len, config.stochEma2Len]);
+  }, [config.stochPeriodK, config.stochSmoothK, config.stochPeriodD]);
 
   useEffect(() => {
     if (stochKRef.current) stochKRef.current.applyOptions({ color: config.stochKColor });
@@ -1489,17 +1515,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
       ]);
     }
 
-    // Reference EMAs (displayed as values in the pill, not as lines)
-    const ema1Data = ema(c, cfg.stochEma1Len);
-    const ema2Data = ema(c, cfg.stochEma2Len);
-
     const last = data.at(-1);
     setLastValues((prev) => ({
       ...prev,
       stochK: last?.k,
       stochD: last?.d,
-      stochEma1: ema1Data.at(-1)?.value,
-      stochEma2: ema2Data.at(-1)?.value,
     }));
   }
 
@@ -2367,6 +2387,31 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
+          {indicators.stoch && stochPaneIdx === 0 && (
+            <IndicatorPill
+              name={`Stoch ${config.stochPeriodK}, ${config.stochSmoothK}, ${config.stochPeriodD}`}
+              value={
+                lastValues.stochK !== undefined ? (
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span style={{ color: config.stochKColor ?? "#ffffff" }}>
+                      %K {lastValues.stochK.toFixed(2)}
+                    </span>
+                    <span style={{ color: config.stochDColor ?? "#ffb74d" }}>
+                      %D {(lastValues.stochD ?? 0).toFixed(2)}
+                    </span>
+                  </span>
+                ) : undefined
+              }
+              color={INDICATOR_COLORS.stoch}
+              hidden={hidden.stoch}
+              onToggleHide={() => toggleHidden("stoch")}
+              onSettings={() => setSettingsTarget("stoch")}
+              onRemove={() => removeIndicator("stoch")}
+              order={indicatorPanes.stoch}
+              onChangeOrder={(num) => setIndicatorPane("stoch", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
+            />
+          )}
           {indicators.rsi && rsiPaneIdx === 0 && (
             <IndicatorPill
               name={`RSI ${config.rsi}`}
@@ -2391,9 +2436,27 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rsi")}
               order={indicatorPanes.rsi}
               onChangeOrder={(num) => setIndicatorPane("rsi", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
-
+          {indicators.sqzmom && sqzmomPaneIdx === 0 && (
+            <IndicatorPill
+              name={`SQZMOM_LB`}
+              value={
+                lastValues.sqzmom !== undefined
+                  ? lastValues.sqzmom.toFixed(4)
+                  : undefined
+              }
+              color={INDICATOR_COLORS.sqzmom}
+              hidden={hidden.sqzmom}
+              onToggleHide={() => toggleHidden("sqzmom")}
+              onSettings={() => setSettingsTarget("sqzmom")}
+              onRemove={() => removeIndicator("sqzmom")}
+              order={indicatorPanes.sqzmom}
+              onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
+            />
+          )}
           {indicators.adx && adxPaneIdx === 0 && (
             <IndicatorPill
               name={`DMI/ADX ${config.dmiLength}, ${config.adxLength}`}
@@ -2409,6 +2472,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("adx")}
               order={indicatorPanes.adx}
               onChangeOrder={(num) => setIndicatorPane("adx", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
           {indicators.rci && rciPaneIdx === 0 && (
@@ -2426,10 +2490,22 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rci")}
               order={indicatorPanes.rci}
               onChangeOrder={(num) => setIndicatorPane("rci", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           )}
-          {indicators.stoch && stochPaneIdx === 0 && (
+        </div>
+      </div>
+
+      {/* Dynamic Pane Indicator Containers for sub-panes */}
+      {paneOffsets.map((offset, paneIdx) => {
+        if (paneIdx === 0) return null;
+
+        const indicatorsInPane: React.ReactNode[] = [];
+
+        if (indicators.stoch && stochPaneIdx === paneIdx) {
+          indicatorsInPane.push(
             <IndicatorPill
+              key="stoch"
               name={`Stoch ${config.stochPeriodK}, ${config.stochSmoothK}, ${config.stochPeriodD}`}
               value={
                 lastValues.stochK !== undefined ? (
@@ -2440,16 +2516,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
                     <span style={{ color: config.stochDColor ?? "#ffb74d" }}>
                       %D {(lastValues.stochD ?? 0).toFixed(2)}
                     </span>
-                    {lastValues.stochEma1 !== undefined && (
-                      <span className="text-tv-text-muted">
-                        EMA{config.stochEma1Len} {formatPrice(lastValues.stochEma1)}
-                      </span>
-                    )}
-                    {lastValues.stochEma2 !== undefined && (
-                      <span className="text-tv-text-muted">
-                        EMA{config.stochEma2Len} {formatPrice(lastValues.stochEma2)}
-                      </span>
-                    )}
                   </span>
                 ) : undefined
               }
@@ -2460,33 +2526,10 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("stoch")}
               order={indicatorPanes.stoch}
               onChangeOrder={(num) => setIndicatorPane("stoch", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
-          )}
-          {indicators.sqzmom && sqzmomPaneIdx === 0 && (
-        <IndicatorPill
-          name={`SQZMOM_LB`}
-          value={
-            lastValues.sqzmom !== undefined
-              ? lastValues.sqzmom.toFixed(4)
-              : undefined
-          }
-          color={INDICATOR_COLORS.sqzmom}
-          hidden={hidden.sqzmom}
-          onToggleHide={() => toggleHidden("sqzmom")}
-          onSettings={() => setSettingsTarget("sqzmom")}
-          onRemove={() => removeIndicator("sqzmom")}
-          order={indicatorPanes.sqzmom}
-          onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
-        />
-      )}
-        </div>
-      </div>
-
-      {/* Dynamic Pane Indicator Containers for sub-panes */}
-      {paneOffsets.map((offset, paneIdx) => {
-        if (paneIdx === 0) return null;
-
-        const indicatorsInPane: React.ReactNode[] = [];
+          );
+        }
 
         if (indicators.rsi && rsiPaneIdx === paneIdx) {
           indicatorsInPane.push(
@@ -2514,6 +2557,28 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rsi")}
               order={indicatorPanes.rsi}
               onChangeOrder={(num) => setIndicatorPane("rsi", num)}
+              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
+            />
+          );
+        }
+
+        if (indicators.sqzmom && sqzmomPaneIdx === paneIdx) {
+          indicatorsInPane.push(
+            <IndicatorPill
+              key="sqzmom"
+              name={`SQZMOM_LB`}
+              value={
+                lastValues.sqzmom !== undefined
+                  ? lastValues.sqzmom.toFixed(4)
+                  : undefined
+              }
+              color={INDICATOR_COLORS.sqzmom}
+              hidden={hidden.sqzmom}
+              onToggleHide={() => toggleHidden("sqzmom")}
+              onSettings={() => setSettingsTarget("sqzmom")}
+              onRemove={() => removeIndicator("sqzmom")}
+              order={indicatorPanes.sqzmom}
+              onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
               onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );
@@ -2558,67 +2623,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
               onRemove={() => removeIndicator("rci")}
               order={indicatorPanes.rci}
               onChangeOrder={(num) => setIndicatorPane("rci", num)}
-              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
-            />
-          );
-        }
-
-        if (indicators.stoch && stochPaneIdx === paneIdx) {
-          indicatorsInPane.push(
-            <IndicatorPill
-              key="stoch"
-              name={`Stoch ${config.stochPeriodK}, ${config.stochSmoothK}, ${config.stochPeriodD}`}
-              value={
-                lastValues.stochK !== undefined ? (
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <span style={{ color: config.stochKColor ?? "#ffffff" }}>
-                      %K {lastValues.stochK.toFixed(2)}
-                    </span>
-                    <span style={{ color: config.stochDColor ?? "#ffb74d" }}>
-                      %D {(lastValues.stochD ?? 0).toFixed(2)}
-                    </span>
-                    {lastValues.stochEma1 !== undefined && (
-                      <span className="text-tv-text-muted">
-                        EMA{config.stochEma1Len} {formatPrice(lastValues.stochEma1)}
-                      </span>
-                    )}
-                    {lastValues.stochEma2 !== undefined && (
-                      <span className="text-tv-text-muted">
-                        EMA{config.stochEma2Len} {formatPrice(lastValues.stochEma2)}
-                      </span>
-                    )}
-                  </span>
-                ) : undefined
-              }
-              color={INDICATOR_COLORS.stoch}
-              hidden={hidden.stoch}
-              onToggleHide={() => toggleHidden("stoch")}
-              onSettings={() => setSettingsTarget("stoch")}
-              onRemove={() => removeIndicator("stoch")}
-              order={indicatorPanes.stoch}
-              onChangeOrder={(num) => setIndicatorPane("stoch", num)}
-              onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
-            />
-          );
-        }
-
-        if (indicators.sqzmom && sqzmomPaneIdx === paneIdx) {
-          indicatorsInPane.push(
-            <IndicatorPill
-              key="sqzmom"
-              name={`SQZMOM_LB`}
-              value={
-                lastValues.sqzmom !== undefined
-                  ? lastValues.sqzmom.toFixed(4)
-                  : undefined
-              }
-              color={INDICATOR_COLORS.sqzmom}
-              hidden={hidden.sqzmom}
-              onToggleHide={() => toggleHidden("sqzmom")}
-              onSettings={() => setSettingsTarget("sqzmom")}
-              onRemove={() => removeIndicator("sqzmom")}
-              order={indicatorPanes.sqzmom}
-              onChangeOrder={(num) => setIndicatorPane("sqzmom", num)}
               onToggleMinimize={() => requestAnimationFrame(() => recomputePaneOffsets())}
             />
           );

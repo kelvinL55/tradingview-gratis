@@ -86,8 +86,6 @@ export interface IndicatorConfig {
   stochPeriodK: number;
   stochSmoothK: number;
   stochPeriodD: number;
-  stochEma1Len: number;
-  stochEma2Len: number;
   stochKColor: string;
   stochDColor: string;
   // Squeeze Momentum configuration
@@ -121,7 +119,7 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   adxLength: 14,
   dmiLength: 14,
   adxKeyLevel: 23,
-  adxColor: "#ef5350",
+  adxColor: "#ffffff",
   plusDIColor: "#2196f3",
   minusDIColor: "#787b86",
   adxKeyLevelColor: "#ffffff",
@@ -148,8 +146,6 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   stochPeriodK: 14,
   stochSmoothK: 1,
   stochPeriodD: 3,
-  stochEma1Len: 55,
-  stochEma2Len: 200,
   stochKColor: "#ffffff",
   stochDColor: "#ffb74d",
   // Squeeze Momentum defaults
@@ -267,11 +263,11 @@ export const useChartStore = create<ChartState>()(
       watchlist: DEFAULT_WATCHLIST,
       timezone: "UTC",
       indicatorPanes: {
-        rsi: 1,
-        adx: 2,   // mismo panel que sqzmom por defecto
-        rci: 3,
-        stoch: 4,
-        sqzmom: 2, // comparte panel con adx
+        stoch: 1,  // Panel 1: Estocástico
+        rsi: 2,    // Panel 2: RSI
+        sqzmom: 3, // Panel 3 (Combinado): Squeeze Momentum + ADX/DMI
+        adx: 3,    // Panel 3 (Combinado): ADX/DMI + Squeeze Momentum
+        rci: 4,    // Panel 4: RCI
       },
       profiles: {
         "1": null,
@@ -390,7 +386,7 @@ export const useChartStore = create<ChartState>()(
     }),
     {
       name: "tv-gratis-chart-state",
-      version: 10,
+      version: 12,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 1) {
@@ -579,18 +575,18 @@ export const useChartStore = create<ChartState>()(
                 const profile = state.profiles[key];
                 if (profile) {
                   delete profile.oscillatorOrder;
-                  profile.indicatorPanes = profile.indicatorPanes ?? { rsi: 1, adx: 2, rci: 3, stoch: 4, sqzmom: 2 };
+                  profile.indicatorPanes = profile.indicatorPanes ?? { stoch: 1, rsi: 2, sqzmom: 3, adx: 3, rci: 4 };
                 }
               }
             }
           }
         }
         if (version < 10) {
-          // Forzar sqzmom al mismo pane que adx (pane 2)
+          // Forzar sqzmom al mismo pane que adx
           if (state && state.indicatorPanes) {
             state.indicatorPanes = {
               ...state.indicatorPanes,
-              sqzmom: state.indicatorPanes.adx ?? 2,
+              sqzmom: state.indicatorPanes.adx ?? 3,
             };
           }
         }
@@ -603,6 +599,24 @@ export const useChartStore = create<ChartState>()(
               state.watchlist = state.watchlist.map((s: string) =>
                 s.includes(":") ? s : `BINANCE:${s}`,
               );
+            }
+          }
+        }
+        if (version < 12) {
+          if (state) {
+            if (state.indicatorPanes) {
+              state.indicatorPanes = {
+                stoch: 1,
+                rsi: 2,
+                sqzmom: 3,
+                adx: 3,
+                rci: 4,
+              };
+            }
+            if (state.config) {
+              state.config.adxColor = "#ffffff";
+              delete state.config.stochEma1Len;
+              delete state.config.stochEma2Len;
             }
           }
         }
