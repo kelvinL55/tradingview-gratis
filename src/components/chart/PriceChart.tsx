@@ -376,6 +376,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
       rightPriceScale: {
         borderColor: TV_COLORS.border,
         textColor: TV_COLORS.text,
+        autoScale: true,
       },
       leftPriceScale: {
         borderColor: TV_COLORS.border,
@@ -1852,7 +1853,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
               chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
 
               // Reset all price scales so they auto-fit vertically to the visible data
-              candleSeriesRef.current?.priceScale().applyOptions({ autoScale: true });
+              chartRef.current.priceScale('right').applyOptions({ autoScale: true });
               rsiRef.current?.priceScale().applyOptions({ autoScale: true });
               adxRef.current?.priceScale().applyOptions({ autoScale: true });
               rci1Ref.current?.priceScale().applyOptions({ autoScale: true });
@@ -1908,20 +1909,24 @@ export function PriceChart({ symbol, timeframe }: Props) {
             });
           }
 
-          // 2. Si estamos en modo Live Follow y llega un tick o vela nueva,
-          // mantener autoScale activado en la escala Y y desplazar suavemente el rango visible si es necesario
-          if (isLiveFollowingRef.current && chartRef.current) {
-            candleSeriesRef.current.priceScale().applyOptions({ autoScale: true });
+          // 2. Forzar autoScale en CADA tick para que el eje Y siempre siga al precio actual.
+          // En lightweight-charts v5, se debe usar chart.priceScale('right') directamente
+          // en vez de series.priceScale() para garantizar que el autoScale se re-active
+          // tras interacciones del usuario con el eje Y.
+          if (chartRef.current) {
+            chartRef.current.priceScale('right').applyOptions({ autoScale: true });
+          }
 
-            if (isNewCandle) {
-              const ts = chartRef.current.timeScale();
-              const visibleRange = ts.getVisibleLogicalRange();
-              if (visibleRange) {
-                const barsToShow = visibleRange.to - visibleRange.from;
-                const newTo = arr.length - 1 + RIGHT_OFFSET;
-                const newFrom = newTo - barsToShow;
-                ts.setVisibleLogicalRange({ from: newFrom, to: newTo });
-              }
+          // 3. Si estamos en modo Live Follow y llega una vela nueva,
+          // desplazar suavemente el rango horizontal visible para mantener la vela actual en pantalla
+          if (isLiveFollowingRef.current && chartRef.current && isNewCandle) {
+            const ts = chartRef.current.timeScale();
+            const visibleRange = ts.getVisibleLogicalRange();
+            if (visibleRange) {
+              const barsToShow = visibleRange.to - visibleRange.from;
+              const newTo = arr.length - 1 + RIGHT_OFFSET;
+              const newFrom = newTo - barsToShow;
+              ts.setVisibleLogicalRange({ from: newFrom, to: newTo });
             }
           }
 
