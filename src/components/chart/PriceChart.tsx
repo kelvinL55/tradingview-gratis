@@ -1872,7 +1872,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         }
 
         unsub = subscribeExchangeWS(symbol, timeframe, (k) => {
-          if (cancelled || !candleSeriesRef.current) return;
+          if (cancelled || !candleSeriesRef.current || !k || !k.time || typeof k.close !== "number" || isNaN(k.close)) return;
           const arr = candlesRef.current;
           const lastCandle = arr[arr.length - 1];
           const isNewCandle = !lastCandle || k.time > lastCandle.time;

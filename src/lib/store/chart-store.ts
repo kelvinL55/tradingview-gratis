@@ -370,16 +370,16 @@ export const useChartStore = create<ChartState>()(
         }),
       loadProfile: (id) =>
         set((s) => {
-          const profile = s.profiles[id];
+          const profile = s.profiles?.[id];
           if (!profile) return {};
           return {
-            symbol: profile.symbol,
-            timeframe: profile.timeframe,
-            indicators: { ...profile.indicators },
-            hidden: { ...profile.hidden },
-            config: { ...profile.config },
-            timezone: profile.timezone,
-            indicatorPanes: profile.indicatorPanes ?? { rsi: 1, adx: 2, rci: 3, stoch: 4, sqzmom: 5 },
+            symbol: profile.symbol ?? s.symbol,
+            timeframe: profile.timeframe ?? s.timeframe,
+            indicators: profile.indicators ? { ...s.indicators, ...profile.indicators } : s.indicators,
+            hidden: profile.hidden ? { ...s.hidden, ...profile.hidden } : s.hidden,
+            config: profile.config ? { ...s.config, ...profile.config } : s.config,
+            timezone: profile.timezone ?? s.timezone,
+            indicatorPanes: profile.indicatorPanes ? { ...s.indicatorPanes, ...profile.indicatorPanes } : s.indicatorPanes,
             activeProfileId: id,
           };
         }),

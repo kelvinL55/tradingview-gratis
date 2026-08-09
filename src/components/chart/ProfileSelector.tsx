@@ -20,7 +20,7 @@ export function ProfileSelector() {
 
   const profileKeys = ["1", "2", "3", "4"] as const;
 
-  const activeProfile = activeProfileId ? profiles[activeProfileId] : null;
+  const activeProfile = (activeProfileId && profiles) ? profiles[activeProfileId] : null;
 
   return (
     <DropdownMenu>
@@ -34,7 +34,7 @@ export function ProfileSelector() {
             Cargar Perfil
           </DropdownMenuLabel>
           {profileKeys.map((key) => {
-            const profile = profiles[key];
+            const profile = profiles?.[key];
             const isActive = activeProfileId === key;
             return (
               <DropdownMenuItem
@@ -64,7 +64,6 @@ export function ProfileSelector() {
             Guardar Estrategia Actual
           </DropdownMenuLabel>
           {profileKeys.map((key) => {
-            const profile = profiles[key];
             return (
               <DropdownMenuItem
                 key={`save-${key}`}
