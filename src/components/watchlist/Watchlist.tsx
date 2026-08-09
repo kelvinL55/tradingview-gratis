@@ -119,7 +119,7 @@ export function Watchlist() {
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold uppercase tracking-wider text-tv-text hover:bg-tv-panel-hover transition-colors outline-none focus:ring-1 focus:ring-tv-blue">
               <Layers className="h-3.5 w-3.5 text-tv-blue" />
-              <span>Watchlist</span>
+              <span>Lista de Monedas</span>
               <span className="ml-0.5 rounded bg-tv-blue/20 px-1.5 py-0.2 text-[10px] text-tv-blue font-mono font-normal">
                 {watchlist.length}
               </span>

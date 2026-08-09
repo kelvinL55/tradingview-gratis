@@ -204,6 +204,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const adxPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
   const rciPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
   const candlesRef = useRef<Candle[]>([]);
+  const isLiveFollowingRef = useRef(true);
+  const loadReqIdRef = useRef(0);
 
   // Drawing tools state and refs
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -411,7 +413,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
       borderDownColor: TV_COLORS.red,
       wickUpColor: TV_COLORS.green,
       wickDownColor: TV_COLORS.red,
-      priceLineColor: TV_COLORS.textMuted,
+      priceLineVisible: true,
+      lastValueVisible: true,
+      priceLineColor: TV_COLORS.blue,
       priceLineStyle: 2,
     });
 
@@ -537,7 +541,17 @@ export function PriceChart({ symbol, timeframe }: Props) {
     // Re-render measure overlay on pan / zoom so pixel coords stay in sync
     const tsRangeHandler = () => setRenderTick((t) => t + 1);
     chart.timeScale().subscribeVisibleTimeRangeChange(tsRangeHandler);
-    const logicalRangeHandler = () => setRenderTick((t) => t + 1);
+    const logicalRangeHandler = (range: { from: number; to: number } | null) => {
+      setRenderTick((t) => t + 1);
+      if (range && candlesRef.current.length > 0) {
+        const totalBars = candlesRef.current.length;
+        if (range.to >= totalBars - 15) {
+          isLiveFollowingRef.current = true;
+        } else if (range.to < totalBars - 25) {
+          isLiveFollowingRef.current = false;
+        }
+      }
+    };
     chart.timeScale().subscribeVisibleLogicalRangeChange(logicalRangeHandler);
 
     // ResizeObserver — recompute pane offsets when chart container resizes
@@ -1758,6 +1772,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     let unsub: (() => void) | null = null;
     let cancelled = false;
+    const currentReqId = ++loadReqIdRef.current;
+    isLiveFollowingRef.current = true;
 
     // Limpieza inmediata de datos viejos para una transición fluida al cambiar de moneda/timeframe
     if (chartRef.current) {
@@ -1788,7 +1804,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     async function load() {
       try {
         const klines = await fetchKlines(symbol, timeframe, 1000);
-        if (cancelled) return;
+        if (cancelled || currentReqId !== loadReqIdRef.current) return;
         candlesRef.current = klines;
         if (candleSeriesRef.current) {
           if (klines.length > 0) {
@@ -1830,10 +1846,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
           const from = Math.max(totalBars - barsToShow, 0);
           const to = totalBars - 1 + RIGHT_OFFSET; // right offset for live candles & drawings
 
-          // Bug 3: envolver en doble RAF para garantizar que setData fue procesado
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              if (!chartRef.current) return;
+              if (!chartRef.current || currentReqId !== loadReqIdRef.current) return;
               chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
 
               // Reset all price scales so they auto-fit vertically to the visible data
@@ -1858,63 +1873,88 @@ export function PriceChart({ symbol, timeframe }: Props) {
         }
 
         unsub = subscribeExchangeWS(symbol, timeframe, (k) => {
-            if (!candleSeriesRef.current) return;
-            const arr = candlesRef.current;
-            const lastCandle = arr[arr.length - 1];
-            const isNewCandle = !lastCandle || k.time > lastCandle.time;
-            if (lastCandle && lastCandle.time === k.time) {
-              arr[arr.length - 1] = k;
-            } else if (isNewCandle) {
-              arr.push(k);
-              if (arr.length > 2000) arr.shift();
-            } else {
-              return;
-            }
-            // Actualizar la vela
-            candleSeriesRef.current.update({
-              time: k.time as UTCTimestamp,
-              open: k.open,
-              high: k.high,
-              low: k.low,
-              close: k.close,
-            });
-            if (volumeSeriesRef.current) {
-              volumeSeriesRef.current.update({
-                time: k.time as UTCTimestamp,
-                value: k.volume,
-                color: k.close >= k.open ? `${TV_COLORS.green}66` : `${TV_COLORS.red}66`,
-              });
-            }
-            // Actualización atómica de todos los parches de indicadores en un solo dispatch de React
-            const pEma = updateLastEMAs();
-            const pRsi = updateLastRSI();
-            const pAdx = updateLastADX();
-            const pRci = updateLastRCI();
-            const pStoch = updateLastStoch();
-            const pSqz = updateLastSqzMom();
+          if (!candleSeriesRef.current || currentReqId !== loadReqIdRef.current) return;
+          const arr = candlesRef.current;
+          const lastCandle = arr[arr.length - 1];
+          const isNewCandle = !lastCandle || k.time > lastCandle.time;
+          if (lastCandle && lastCandle.time === k.time) {
+            arr[arr.length - 1] = k;
+          } else if (isNewCandle) {
+            arr.push(k);
+            if (arr.length > 2000) arr.shift();
+          } else {
+            return;
+          }
 
-            // Extender líneas de nivel (RSI 30/50/70, ADX keylevel, Stoch 20/50/80, RCI ob/os)
-            updateRSI_levelLines();
-            updateADX_keyLevel();
-            updateStoch_levelLines();
-            updateRCI_levelLines();
-
-            setLastValues((prev) => ({
-              ...prev,
-              ...pEma,
-              ...pRsi,
-              ...pAdx,
-              ...pRci,
-              ...pStoch,
-              ...pSqz,
-            }));
-
-            const prev = arr[arr.length - 2] ?? lastCandle;
-            setLastPrice({
-              value: k.close,
-              pct: prev && prev.close !== 0 ? ((k.close - prev.close) / prev.close) * 100 : 0,
-            });
+          // 1. Actualizar la vela en tiempo real
+          candleSeriesRef.current.update({
+            time: k.time as UTCTimestamp,
+            open: k.open,
+            high: k.high,
+            low: k.low,
+            close: k.close,
           });
+
+          // Actualizar el color de la línea del precio actual (verde alcista / rojo bajista)
+          candleSeriesRef.current.applyOptions({
+            priceLineColor: k.close >= k.open ? TV_COLORS.green : TV_COLORS.red,
+          });
+
+          if (volumeSeriesRef.current) {
+            volumeSeriesRef.current.update({
+              time: k.time as UTCTimestamp,
+              value: k.volume,
+              color: k.close >= k.open ? `${TV_COLORS.green}66` : `${TV_COLORS.red}66`,
+            });
+          }
+
+          // 2. Si estamos en modo Live Follow y llega un tick o vela nueva,
+          // mantener autoScale activado en la escala Y y desplazar suavemente el rango visible si es necesario
+          if (isLiveFollowingRef.current && chartRef.current) {
+            candleSeriesRef.current.priceScale().applyOptions({ autoScale: true });
+
+            if (isNewCandle) {
+              const ts = chartRef.current.timeScale();
+              const visibleRange = ts.getVisibleLogicalRange();
+              if (visibleRange) {
+                const barsToShow = visibleRange.to - visibleRange.from;
+                const newTo = arr.length - 1 + RIGHT_OFFSET;
+                const newFrom = newTo - barsToShow;
+                ts.setVisibleLogicalRange({ from: newFrom, to: newTo });
+              }
+            }
+          }
+
+          // 3. Actualización atómica de todos los parches de indicadores en un solo dispatch de React
+          const pEma = updateLastEMAs();
+          const pRsi = updateLastRSI();
+          const pAdx = updateLastADX();
+          const pRci = updateLastRCI();
+          const pStoch = updateLastStoch();
+          const pSqz = updateLastSqzMom();
+
+          // Extender líneas de nivel (RSI 30/50/70, ADX keylevel, Stoch 20/50/80, RCI ob/os)
+          updateRSI_levelLines();
+          updateADX_keyLevel();
+          updateStoch_levelLines();
+          updateRCI_levelLines();
+
+          setLastValues((prev) => ({
+            ...prev,
+            ...pEma,
+            ...pRsi,
+            ...pAdx,
+            ...pRci,
+            ...pStoch,
+            ...pSqz,
+          }));
+
+          const prev = arr[arr.length - 2] ?? lastCandle;
+          setLastPrice({
+            value: k.close,
+            pct: prev && prev.close !== 0 ? ((k.close - prev.close) / prev.close) * 100 : 0,
+          });
+        });
       } catch (e) {
         console.error("Failed to load chart data:", e);
       }
