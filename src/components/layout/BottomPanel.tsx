@@ -46,10 +46,10 @@ export function BottomPanel() {
   const upClass = (n: number) => (n >= 0 ? "text-tv-green" : "text-tv-red");
 
   return (
-    <div className="flex h-9 items-center gap-0 border-t border-tv-border bg-tv-panel px-3 text-xs">
-      <div className="flex items-center gap-1.5 border-r border-tv-border px-3">
-        <span className="text-tv-text-dim">Símbolo</span>
-        <span className="font-medium text-tv-text">{parsed.symbol}</span>
+    <div className="flex h-9 shrink-0 items-center gap-0 border-t border-tv-border bg-tv-panel px-3 text-xs z-20">
+      <div className="flex items-center gap-1.5 border-r border-tv-border/80 px-3">
+        <span className="text-tv-text-dim text-[11px] uppercase tracking-wider font-semibold">Símbolo</span>
+        <span className="font-bold text-tv-text text-xs tracking-tight">{parsed.symbol}</span>
         <ExchangeBadge exchange={parsed.exchange} className="scale-90" />
       </div>
       <Stat
@@ -77,20 +77,21 @@ export function BottomPanel() {
           value={t ? formatVolume(t.quoteVolume) : "—"}
         />
       </div>
-      <div className="ml-auto flex items-center gap-3 text-[10px] text-tv-text-dim">
+      <div className="ml-auto flex items-center gap-3 text-[11px] text-tv-text-muted font-medium">
         <div className="flex items-center gap-1.5">
-          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-tv-green" />
-          <span>{parsed.exchange} · Live</span>
+          <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-tv-green shadow-[0_0_8px_rgba(8,153,129,0.6)]" />
+          <span className="font-semibold text-tv-text">{parsed.exchange}</span>
+          <span className="text-tv-text-dim">· Live</span>
         </div>
         <span className="text-tv-border">|</span>
         <button
           onClick={() => setTimezone(timezone === "UTC" ? "Local" : "UTC")}
           title={`Huso Horario: ${timezone === "UTC" ? "UTC (GMT+0)" : `Local (${localLabel})`}. Haz clic para cambiar.`}
           className={cn(
-            "flex items-center gap-1 rounded px-1.5 py-0.5 font-medium transition-all duration-150 active:scale-95 cursor-pointer",
+            "flex items-center gap-1 rounded px-2 py-0.5 font-bold transition-all duration-150 active:scale-95 cursor-pointer",
             timezone === "UTC"
               ? "text-tv-text-muted hover:bg-tv-panel-hover hover:text-tv-text"
-              : "bg-tv-blue/10 text-tv-blue hover:bg-tv-blue/20",
+              : "bg-tv-blue/15 text-tv-blue hover:bg-tv-blue/25 border border-tv-blue/30",
           )}
         >
           {timezone === "UTC" ? "UTC" : localLabel}
@@ -110,9 +111,9 @@ function Stat({
   valueClass?: string;
 }) {
   return (
-    <div className="flex items-center gap-1.5 border-r border-tv-border px-3">
-      <span className="text-tv-text-dim">{label}</span>
-      <span className={cn("font-medium tabular-nums", valueClass ?? "text-tv-text")}>
+    <div className="flex items-center gap-1.5 border-r border-tv-border/80 px-3">
+      <span className="text-tv-text-dim text-[11px]">{label}</span>
+      <span className={cn("font-bold tabular-nums text-xs", valueClass ?? "text-tv-text")}>
         {value}
       </span>
     </div>

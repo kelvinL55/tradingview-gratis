@@ -104,17 +104,17 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 const TV_COLORS = {
-  bg: "#131722",
-  panel: "#1e222d",
-  border: "#2a2e39",
-  text: "#d1d4dc",
-  textMuted: "#787b86",
-  green: "#26a69a",
-  red: "#ef5350",
+  bg: "#0b0e14",
+  panel: "#151924",
+  border: "#282e3f",
+  text: "#f0f3f8",
+  textMuted: "#939bb0",
+  green: "#089981",
+  red: "#f23645",
   blue: "#2962ff",
   yellow: "#ffb74d",
   purple: "#ab47bc",
-  grid: "#1e222d",
+  grid: "#161b26",
 };
 
 interface HoverInfo {
@@ -334,8 +334,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
         background: { color: TV_COLORS.bg },
         textColor: TV_COLORS.text,
         fontFamily: "var(--font-sans), Inter, system-ui, sans-serif",
-        fontSize: 11,
-        panes: { separatorColor: TV_COLORS.border, separatorHoverColor: TV_COLORS.border },
+        fontSize: 13,
+        panes: { separatorColor: TV_COLORS.border, separatorHoverColor: TV_COLORS.blue },
       },
       localization: {
         timeFormatter: (timestamp: number) => {
@@ -373,11 +373,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
       },
       rightPriceScale: {
         borderColor: TV_COLORS.border,
-        textColor: TV_COLORS.textMuted,
+        textColor: TV_COLORS.text,
       },
       leftPriceScale: {
         borderColor: TV_COLORS.border,
-        textColor: TV_COLORS.textMuted,
+        textColor: TV_COLORS.text,
         visible: true,
       },
       timeScale: {
