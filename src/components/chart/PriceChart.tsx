@@ -1910,9 +1910,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
           }
 
           // 2. Forzar autoScale en CADA tick para que el eje Y siempre siga al precio actual.
-          // En lightweight-charts v5, se debe usar chart.priceScale('right') directamente
-          // en vez de series.priceScale() para garantizar que el autoScale se re-active
-          // tras interacciones del usuario con el eje Y.
+          // En lightweight-charts v5, se debe usar chart.priceScale('right') directamente.
           if (chartRef.current) {
             chartRef.current.priceScale('right').applyOptions({ autoScale: true });
           }
