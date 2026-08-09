@@ -205,7 +205,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const rciPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
   const candlesRef = useRef<Candle[]>([]);
   const isLiveFollowingRef = useRef(true);
-  const loadReqIdRef = useRef(0);
 
   // Drawing tools state and refs
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1773,7 +1772,6 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     let unsub: (() => void) | null = null;
     let cancelled = false;
-    const currentReqId = ++loadReqIdRef.current;
     isLiveFollowingRef.current = true;
 
     // Limpieza inmediata de datos viejos para una transición fluida al cambiar de moneda/timeframe
@@ -1805,7 +1803,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
     async function load() {
       try {
         const klines = await fetchKlines(symbol, timeframe, 1000);
-        if (cancelled || currentReqId !== loadReqIdRef.current) return;
+        if (cancelled) return;
         candlesRef.current = klines;
         if (candleSeriesRef.current) {
           if (klines.length > 0) {
@@ -1849,7 +1847,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              if (!chartRef.current || currentReqId !== loadReqIdRef.current) return;
+              if (cancelled || !chartRef.current) return;
               chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
 
               // Reset all price scales so they auto-fit vertically to the visible data
@@ -1874,7 +1872,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         }
 
         unsub = subscribeExchangeWS(symbol, timeframe, (k) => {
-          if (!candleSeriesRef.current || currentReqId !== loadReqIdRef.current) return;
+          if (cancelled || !candleSeriesRef.current) return;
           const arr = candlesRef.current;
           const lastCandle = arr[arr.length - 1];
           const isNewCandle = !lastCandle || k.time > lastCandle.time;
