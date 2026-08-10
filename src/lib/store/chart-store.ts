@@ -204,32 +204,32 @@ interface ChartState {
   indicatorPanes: Record<"rsi" | "adx" | "rci" | "stoch" | "sqzmom", number>;
   profiles: Record<string, ChartProfile | null>;
   activeProfileId: string | null;
-
   // Ephemeral UI state (not persisted)
   tool: DrawingTool;
   priceLines: PriceLine[];
   symbolDialogOpen: boolean;
-  /** Which indicator's settings dialog is open (null = closed) */
   settingsTarget: IndicatorKey | null;
+  resetChartTick: number;
 
-  // Actions
-  setSymbol: (s: string) => void;
-  setTimeframe: (t: Timeframe) => void;
+  setSymbol: (symbol: string) => void;
+  setTimeframe: (timeframe: Timeframe) => void;
   toggleIndicator: (key: IndicatorKey) => void;
   removeIndicator: (key: IndicatorKey) => void;
   toggleHidden: (key: IndicatorKey) => void;
   setConfig: (patch: Partial<IndicatorConfig>) => void;
-  addToWatchlist: (s: string) => void;
-  removeFromWatchlist: (s: string) => void;
-  setTool: (t: DrawingTool) => void;
+  addToWatchlist: (symbol: string) => void;
+  removeFromWatchlist: (symbol: string) => void;
+  setTool: (tool: DrawingTool) => void;
   addPriceLine: (price: number, symbol: string) => void;
+  removePriceLine: (id: string) => void;
   clearPriceLines: (symbol?: string) => void;
-  setSymbolDialogOpen: (v: boolean) => void;
-  setSettingsTarget: (k: IndicatorKey | null) => void;
-  setTimezone: (tz: "UTC" | "Local") => void;
+  setSymbolDialogOpen: (open: boolean) => void;
+  setSettingsTarget: (target: IndicatorKey | null) => void;
+  setTimezone: (timezone: "UTC" | "Local") => void;
   setIndicatorPane: (key: "rsi" | "adx" | "rci" | "stoch" | "sqzmom", paneNum: number) => void;
   saveProfile: (id: string) => void;
   loadProfile: (id: string) => void;
+  triggerResetChart: () => void;
 }
 
 export const useChartStore = create<ChartState>()(
@@ -337,6 +337,10 @@ export const useChartStore = create<ChartState>()(
             },
           ],
         })),
+      removePriceLine: (id) =>
+        set((state) => ({
+          priceLines: state.priceLines.filter((p) => p.id !== id),
+        })),
       clearPriceLines: (symbol) =>
         set((state) => ({
           priceLines: symbol
@@ -383,6 +387,8 @@ export const useChartStore = create<ChartState>()(
             activeProfileId: id,
           };
         }),
+      resetChartTick: 0,
+      triggerResetChart: () => set((s) => ({ resetChartTick: s.resetChartTick + 1 })),
     }),
     {
       name: "tv-gratis-chart-state",

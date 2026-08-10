@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Code2, Zap } from "lucide-react";
+import { Code2, Zap, RotateCcw } from "lucide-react";
 import { SymbolSelector } from "@/components/chart/SymbolSelector";
 import { TimeframeSelector } from "@/components/chart/TimeframeSelector";
 import { IndicatorMenu } from "@/components/chart/IndicatorMenu";
 import { ProfileSelector } from "@/components/chart/ProfileSelector";
 import { Separator } from "@/components/ui/separator";
+import { useChartStore } from "@/lib/store/chart-store";
 
 export function Header() {
+  const triggerResetChart = useChartStore((s) => s.triggerResetChart);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +61,15 @@ export function Header() {
         <IndicatorMenu />
         <Separator orientation="vertical" className="mx-1 h-6 bg-tv-border" />
         <ProfileSelector />
+        <Separator orientation="vertical" className="mx-1 h-6 bg-tv-border" />
+        <button
+          onClick={triggerResetChart}
+          className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs text-tv-text hover:bg-tv-panel-hover outline-none transition-colors"
+          title="Restablecer zoom y vista inicial del gráfico"
+        >
+          <RotateCcw className="h-3.5 w-3.5 text-tv-text-muted" />
+          <span>Restablecer</span>
+        </button>
       </div>
 
       <div className="flex items-center gap-2">

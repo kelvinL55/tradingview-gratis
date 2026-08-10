@@ -237,6 +237,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const timezone = useChartStore((s) => s.timezone);
   const indicatorPanes = useChartStore((s) => s.indicatorPanes);
   const setIndicatorPane = useChartStore((s) => s.setIndicatorPane);
+  const resetChartTick = useChartStore((s) => s.resetChartTick);
 
   // Refs to avoid recreating subscribeClick on every tool change
   const toolRef = useRef(tool);
@@ -1902,23 +1903,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
             });
           }
 
-          // 2. Forzar autoScale en CADA tick para que el eje Y siempre siga al precio actual.
-          // En lightweight-charts v5, se debe usar chart.priceScale('right') directamente.
+          // 2. Actualizar el autoScale de la escala Y en cada tick de forma ligera
           if (chartRef.current) {
             chartRef.current.priceScale('right').applyOptions({ autoScale: true });
-          }
-
-          // 3. Si estamos en modo Live Follow y llega una vela nueva,
-          // desplazar suavemente el rango horizontal visible para mantener la vela actual en pantalla
-          if (isLiveFollowingRef.current && chartRef.current && isNewCandle) {
-            const ts = chartRef.current.timeScale();
-            const visibleRange = ts.getVisibleLogicalRange();
-            if (visibleRange) {
-              const barsToShow = visibleRange.to - visibleRange.from;
-              const newTo = arr.length - 1 + RIGHT_OFFSET;
-              const newFrom = newTo - barsToShow;
-              ts.setVisibleLogicalRange({ from: newFrom, to: newTo });
-            }
           }
 
           // 3. Actualización atómica de todos los parches de indicadores en un solo dispatch de React
@@ -1963,6 +1950,17 @@ export function PriceChart({ symbol, timeframe }: Props) {
       if (unsub) unsub();
     };
   }, [symbol, timeframe]);
+
+  // Efecto para restablecer la vista inicial del gráfico al presionar el botón "Restablecer"
+  useEffect(() => {
+    if (resetChartTick === 0 || !chartRef.current || candlesRef.current.length === 0) return;
+    const barsToShow = VISIBLE_BARS[timeframe] ?? 200;
+    const totalBars = candlesRef.current.length;
+    const from = Math.max(totalBars - barsToShow, 0);
+    const to = totalBars - 1 + RIGHT_OFFSET;
+    chartRef.current.timeScale().setVisibleLogicalRange({ from, to });
+    chartRef.current.priceScale('right').applyOptions({ autoScale: true });
+  }, [resetChartTick, timeframe]);
 
   const greenOrRed = (n: number) =>
     n >= 0 ? "text-tv-green" : "text-tv-red";
