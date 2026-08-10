@@ -16,9 +16,17 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradingView Gratis — Crypto charts open source",
+  title: "Trading_KL — Plataforma de Trading y Análisis en Tiempo Real",
   description:
-    "Plataforma de charts crypto en vivo. Alternativa gratis a TradingView. Powered by Binance + lightweight-charts.",
+    "Plataforma profesional de análisis técnico y gráficos crypto en tiempo real. Powered by Trading_KL.",
+  icons: {
+    icon: "/favicon.svg",
+  },
+  openGraph: {
+    title: "Trading_KL",
+    description: "Plataforma profesional de análisis técnico y gráficos crypto en tiempo real.",
+    siteName: "Trading_KL",
+  },
 };
 
 export default function RootLayout({

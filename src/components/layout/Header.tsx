@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Code2, Zap, RotateCcw } from "lucide-react";
+import { Code2, RotateCcw } from "lucide-react";
 import { SymbolSelector } from "@/components/chart/SymbolSelector";
 import { TimeframeSelector } from "@/components/chart/TimeframeSelector";
 import { IndicatorMenu } from "@/components/chart/IndicatorMenu";
 import { ProfileSelector } from "@/components/chart/ProfileSelector";
 import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/ui/Logo";
 import { useChartStore } from "@/lib/store/chart-store";
 
 export function Header() {
@@ -45,12 +46,10 @@ export function Header() {
   return (
     <header className="flex h-12 items-center justify-between border-b border-tv-border bg-tv-panel px-3">
       <div className="flex items-center gap-1">
-        <div className="flex items-center gap-2 pr-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded bg-tv-blue/20">
-            <Zap className="h-4 w-4 text-tv-blue" />
-          </div>
-          <span className="text-sm font-semibold text-tv-text">
-            TradingView <span className="text-tv-text-muted">Gratis</span>
+        <div className="flex items-center gap-2 pr-2 select-none">
+          <Logo className="h-7 w-7" />
+          <span className="text-sm font-bold tracking-tight text-tv-text flex items-center gap-1">
+            <span className="text-tv-blue text-base">⚡</span> Trading_KL
           </span>
         </div>
         <Separator orientation="vertical" className="h-6 bg-tv-border" />

@@ -1975,6 +1975,16 @@ export function PriceChart({ symbol, timeframe }: Props) {
     chartRef.current.priceScale('right').applyOptions({ autoScale: true });
   }, [resetChartTick, timeframe]);
 
+  // Actualización dinámica del título de la pestaña del navegador (Formato: PRECIO | SÍMBOLO — Trading_KL)
+  useEffect(() => {
+    const parsed = parseSymbolKey(symbol);
+    if (lastPrice && typeof lastPrice.value === "number" && isFinite(lastPrice.value) && lastPrice.value > 0) {
+      document.title = `${formatPrice(lastPrice.value)} | ${parsed.symbol} — Trading_KL`;
+    } else {
+      document.title = `${parsed.symbol} — Trading_KL`;
+    }
+  }, [symbol, lastPrice?.value]);
+
   const greenOrRed = (n: number) =>
     n >= 0 ? "text-tv-green" : "text-tv-red";
 
