@@ -45,11 +45,15 @@ export function Watchlist() {
         if (cancelled) return;
         const map: Record<string, Row> = {};
         tickers.forEach((t) => {
-          map[t.symbolKey] = {
+          const parsed = parseSymbolKey(t.symbolKey);
+          const r: Row = {
             symbolKey: t.symbolKey,
             price: t.lastPrice,
             pct: t.priceChangePercent,
           };
+          map[t.symbolKey] = r;
+          map[parsed.symbolKey] = r;
+          map[parsed.symbol] = r;
         });
         setRows(map);
       })
@@ -63,21 +67,25 @@ export function Watchlist() {
           setRows((prev) => {
             const nextMap = { ...prev };
             tickers.forEach((t) => {
-              const prevRow = prev[t.symbolKey];
+              const parsed = parseSymbolKey(t.symbolKey);
+              const prevRow = prev[t.symbolKey] || prev[parsed.symbolKey] || prev[parsed.symbol];
               if (prevRow) {
                 if (t.lastPrice > prevRow.price) {
-                  setFlash((f) => ({ ...f, [t.symbolKey]: "up" }));
-                  setTimeout(() => setFlash((f) => ({ ...f, [t.symbolKey]: null })), 300);
+                  setFlash((f) => ({ ...f, [t.symbolKey]: "up", [parsed.symbol]: "up" }));
+                  setTimeout(() => setFlash((f) => ({ ...f, [t.symbolKey]: null, [parsed.symbol]: null })), 300);
                 } else if (t.lastPrice < prevRow.price) {
-                  setFlash((f) => ({ ...f, [t.symbolKey]: "down" }));
-                  setTimeout(() => setFlash((f) => ({ ...f, [t.symbolKey]: null })), 300);
+                  setFlash((f) => ({ ...f, [t.symbolKey]: "down", [parsed.symbol]: "down" }));
+                  setTimeout(() => setFlash((f) => ({ ...f, [t.symbolKey]: null, [parsed.symbol]: null })), 300);
                 }
               }
-              nextMap[t.symbolKey] = {
+              const r: Row = {
                 symbolKey: t.symbolKey,
                 price: t.lastPrice,
                 pct: t.priceChangePercent,
               };
+              nextMap[t.symbolKey] = r;
+              nextMap[parsed.symbolKey] = r;
+              nextMap[parsed.symbol] = r;
             });
             return nextMap;
           });
@@ -218,7 +226,7 @@ export function Watchlist() {
       </div>
 
       {/* Grid Headers */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1.5 border-b border-tv-border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-tv-text-dim bg-tv-bg/50 shrink-0">
+      <div className="grid grid-cols-[1.1fr_1fr_auto_auto] gap-1.5 border-b border-tv-border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-tv-text-dim bg-tv-bg/50 shrink-0">
         <span>Símbolo</span>
         <span className="text-right">Precio</span>
         <span className="text-right">24h %</span>
@@ -239,7 +247,7 @@ export function Watchlist() {
                 key={symbolKey}
                 onClick={() => setSymbol(symbolKey)}
                 className={cn(
-                  "group grid cursor-pointer grid-cols-[1fr_auto_auto_auto] items-center gap-1.5 px-2.5 py-2 text-xs transition-all border-l-2 border-transparent",
+                  "group grid cursor-pointer grid-cols-[1.1fr_1fr_auto_auto] items-center gap-1.5 px-2.5 py-2 text-xs transition-all border-l-2 border-transparent",
                   "hover:bg-tv-panel-hover/80",
                   isActive && "bg-tv-panel-hover border-l-2 border-tv-blue font-bold",
                 )}
