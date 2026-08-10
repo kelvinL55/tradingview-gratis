@@ -33,13 +33,36 @@ export function parseSymbolKey(key: string): {
   if (!key) {
     return { exchange: "BINANCE", symbol: "BTCUSDT", symbolKey: "BINANCE:BTCUSDT" };
   }
-  if (key.includes(":")) {
-    const [ex, sym] = key.split(":");
-    const exchange = (ex.toUpperCase() as ExchangeId) || "BINANCE";
-    return { exchange, symbol: sym, symbolKey: `${exchange}:${sym}` };
+
+  let rawSymbol = key.trim().toUpperCase();
+  if (rawSymbol.includes(":")) {
+    const parts = rawSymbol.split(":");
+    rawSymbol = parts[1] || parts[0] || "";
   }
-  // Default legacy format without prefix to BINANCE
-  return { exchange: "BINANCE", symbol: key, symbolKey: `BINANCE:${key}` };
+
+  // Fuerza Binance como único exchange según preferencia del usuario ("Y SOLO DE binance")
+  const exchange: ExchangeId = "BINANCE";
+
+  // Normaliza el símbolo: si viene base sin par (p. ej. LINK), añade USDT automáticamente -> LINKUSDT
+  let symbol = rawSymbol;
+  if (!symbol) {
+    symbol = "BTCUSDT";
+  } else if (
+    !symbol.endsWith("USDT") &&
+    !symbol.endsWith("BUSD") &&
+    !symbol.endsWith("USDC") &&
+    !symbol.endsWith("BTC") &&
+    !symbol.endsWith("ETH") &&
+    !symbol.endsWith("BNB")
+  ) {
+    symbol = `${symbol}USDT`;
+  }
+
+  return {
+    exchange,
+    symbol,
+    symbolKey: `BINANCE:${symbol}`,
+  };
 }
 
 export async function fetchKlines(

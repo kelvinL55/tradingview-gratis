@@ -3,12 +3,29 @@ import type { Candle, SymbolInfo, Ticker24h, Timeframe } from "./types";
 const REST_BASE = "https://api.binance.com/api/v3";
 const WS_BASE = "wss://stream.binance.com:9443/stream";
 
+function cleanSymbol(sym: string): string {
+  let s = (sym || "").trim().toUpperCase();
+  if (s.includes(":")) s = s.split(":")[1];
+  if (
+    !s.endsWith("USDT") &&
+    !s.endsWith("BUSD") &&
+    !s.endsWith("USDC") &&
+    !s.endsWith("BTC") &&
+    !s.endsWith("ETH") &&
+    !s.endsWith("BNB")
+  ) {
+    s = `${s}USDT`;
+  }
+  return s;
+}
+
 export async function fetchBinanceKlines(
   symbol: string,
   interval: Timeframe,
   limit = 1000,
 ): Promise<Candle[]> {
-  const url = `${REST_BASE}/klines?symbol=${symbol.toUpperCase()}&interval=${interval}&limit=${limit}`;
+  const sym = cleanSymbol(symbol);
+  const url = `${REST_BASE}/klines?symbol=${sym}&interval=${interval}&limit=${limit}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Binance klines error: ${res.status}`);
   const data = (await res.json()) as unknown[][];
@@ -24,7 +41,8 @@ export async function fetchBinanceKlines(
 }
 
 export async function fetchBinanceTicker24h(symbol: string): Promise<Ticker24h> {
-  const url = `${REST_BASE}/ticker/24hr?symbol=${symbol.toUpperCase()}`;
+  const sym = cleanSymbol(symbol);
+  const url = `${REST_BASE}/ticker/24hr?symbol=${sym}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Binance ticker error: ${res.status}`);
   const t = await res.json();
@@ -108,7 +126,8 @@ export function createBinanceKlinesWS(
   interval: Timeframe,
   onCandle: (candle: Candle) => void,
 ): () => void {
-  const stream = `${symbol.toLowerCase()}@kline_${interval}`;
+  const sym = cleanSymbol(symbol);
+  const stream = `${sym.toLowerCase()}@kline_${interval}`;
   const ws = new WebSocket(`${WS_BASE}?streams=${stream}`);
 
   ws.onmessage = (event) => {
