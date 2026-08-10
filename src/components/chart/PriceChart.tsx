@@ -1903,12 +1903,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             });
           }
 
-          // 2. Actualizar el autoScale de la escala Y en cada tick de forma ligera
-          if (chartRef.current) {
-            chartRef.current.priceScale('right').applyOptions({ autoScale: true });
-          }
-
-          // 3. Actualización atómica de todos los parches de indicadores en un solo dispatch de React
+          // 2. Actualización atómica de todos los parches de indicadores en un solo dispatch de React
           const pEma = updateLastEMAs();
           const pRsi = updateLastRSI();
           const pAdx = updateLastADX();
