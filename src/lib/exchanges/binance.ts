@@ -44,23 +44,40 @@ export async function fetchBinanceTicker24h(symbol: string): Promise<Ticker24h> 
 
 export async function fetchBinanceTickers24h(symbols: string[]): Promise<Ticker24h[]> {
   if (symbols.length === 0) return [];
-  const arr = JSON.stringify(symbols.map((s) => s.toUpperCase()));
+  const cleanSymbols = symbols.map((s) => s.toUpperCase());
+  const arr = JSON.stringify(cleanSymbols);
   const url = `${REST_BASE}/ticker/24hr?symbols=${encodeURIComponent(arr)}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Binance tickers error: ${res.status}`);
-  const data = await res.json();
-  return data.map((t: Record<string, string>) => ({
-    symbol: t.symbol,
-    symbolKey: `BINANCE:${t.symbol}`,
-    exchange: "BINANCE",
-    lastPrice: parseFloat(t.lastPrice),
-    priceChange: parseFloat(t.priceChange),
-    priceChangePercent: parseFloat(t.priceChangePercent),
-    highPrice: parseFloat(t.highPrice),
-    lowPrice: parseFloat(t.lowPrice),
-    volume: parseFloat(t.volume),
-    quoteVolume: parseFloat(t.quoteVolume),
-  }));
+
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data.map((t: Record<string, string>) => ({
+          symbol: t.symbol,
+          symbolKey: `BINANCE:${t.symbol}`,
+          exchange: "BINANCE",
+          lastPrice: parseFloat(t.lastPrice),
+          priceChange: parseFloat(t.priceChange),
+          priceChangePercent: parseFloat(t.priceChangePercent),
+          highPrice: parseFloat(t.highPrice),
+          lowPrice: parseFloat(t.lowPrice),
+          volume: parseFloat(t.volume),
+          quoteVolume: parseFloat(t.quoteVolume),
+        }));
+      }
+    }
+  } catch {
+    // Fallback a peticiones individuales si falla el lote
+  }
+
+  // Fallback seguro: obtener cada símbolo individualmente sin detener los demás
+  const results = await Promise.allSettled(
+    cleanSymbols.map((sym) => fetchBinanceTicker24h(sym))
+  );
+  return results
+    .filter((r): r is PromiseFulfilledResult<Ticker24h> => r.status === "fulfilled")
+    .map((r) => r.value);
 }
 
 let cachedSymbols: SymbolInfo[] | null = null;
