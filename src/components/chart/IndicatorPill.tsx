@@ -62,7 +62,7 @@ export function IndicatorPill({
       <span className="font-medium text-tv-text whitespace-nowrap">{name}</span>
       
       {!minimized && value !== undefined && (
-        <span className="tabular-nums text-tv-text-muted">{value}</span>
+        <span className="tabular-nums font-semibold text-slate-200">{value}</span>
       )}
 
       <div className="ml-1 flex items-center gap-0.5">
