@@ -218,10 +218,11 @@ export function Watchlist() {
       </div>
 
       {/* Grid Headers */}
-      <div className="grid grid-cols-[1fr_auto_auto] gap-2 border-b border-tv-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-tv-text-dim bg-tv-bg/50 shrink-0">
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1.5 border-b border-tv-border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-tv-text-dim bg-tv-bg/50 shrink-0">
         <span>Símbolo</span>
         <span className="text-right">Precio</span>
-        <span className="text-right">24h</span>
+        <span className="text-right">24h %</span>
+        <span className="text-right pr-0.5">Exch</span>
       </div>
 
       {/* Scrollable Watchlist Rows - Strictly Bounded */}
@@ -238,34 +239,28 @@ export function Watchlist() {
                 key={symbolKey}
                 onClick={() => setSymbol(symbolKey)}
                 className={cn(
-                  "group grid cursor-pointer grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2 text-xs transition-all border-l-2 border-transparent",
+                  "group grid cursor-pointer grid-cols-[1fr_auto_auto_auto] items-center gap-1.5 px-2.5 py-2 text-xs transition-all border-l-2 border-transparent",
                   "hover:bg-tv-panel-hover/80",
                   isActive && "bg-tv-panel-hover border-l-2 border-tv-blue font-bold",
                 )}
               >
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className={cn(
-                        "text-[13px] font-bold truncate min-w-0 flex-1 tracking-tight",
-                        isActive ? "text-tv-blue" : "text-tv-text"
-                      )}
-                      title={parsed.symbol}
-                    >
-                      {parsed.symbol}
-                    </span>
-                    <ExchangeBadge
-                      exchange={parsed.exchange}
-                      variant="short"
-                      className="shrink-0"
-                    />
-                  </div>
+                {/* 1. Nombre Completo del Activo (sin truncamiento ...) */}
+                <div className="flex items-center min-w-0">
+                  <span
+                    className={cn(
+                      "text-xs font-bold whitespace-nowrap tracking-tight",
+                      isActive ? "text-tv-blue" : "text-tv-text"
+                    )}
+                    title={parsed.symbol}
+                  >
+                    {parsed.symbol}
+                  </span>
                 </div>
 
-                {/* Precio destacado con números más grandes y de mayor visibilidad */}
+                {/* 2. Precio Completo */}
                 <span
                   className={cn(
-                    "text-right tabular-nums transition-colors font-bold text-[13px]",
+                    "text-right tabular-nums transition-colors font-bold text-xs whitespace-nowrap",
                     f === "up" && "text-tv-green animate-pulse",
                     f === "down" && "text-tv-red animate-pulse",
                     !f && "text-tv-text",
@@ -274,25 +269,33 @@ export function Watchlist() {
                   {row ? formatPrice(row.price) : "—"}
                 </span>
 
-                <div className="flex items-center justify-end gap-1.5">
-                  <span
-                    className={cn(
-                      "tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded",
-                      row
-                        ? row.pct >= 0
-                          ? "text-tv-green bg-tv-green/10"
-                          : "text-tv-red bg-tv-red/10"
-                        : "text-tv-text-muted",
-                    )}
-                  >
-                    {row ? formatPct(row.pct) : "—"}
-                  </span>
+                {/* 3. Porcentaje 24h */}
+                <span
+                  className={cn(
+                    "tabular-nums text-[10.5px] font-semibold px-1 py-0.5 rounded text-right whitespace-nowrap",
+                    row
+                      ? row.pct >= 0
+                        ? "text-tv-green bg-tv-green/10"
+                        : "text-tv-red bg-tv-red/10"
+                      : "text-tv-text-muted",
+                  )}
+                >
+                  {row ? formatPct(row.pct) : "—"}
+                </span>
+
+                {/* 4. Marca/Exchange (BN) al extremo derecho en tamaño compacto */}
+                <div className="flex items-center justify-end w-6 shrink-0">
+                  <ExchangeBadge
+                    exchange={parsed.exchange}
+                    variant="short"
+                    className="text-[8px] px-1 py-0.2 scale-90 group-hover:hidden transition-all"
+                  />
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       removeFromWatchlist(symbolKey);
                     }}
-                    className="invisible rounded p-1 text-tv-text-muted hover:bg-tv-bg hover:text-tv-red group-hover:visible transition-colors"
+                    className="hidden group-hover:flex items-center justify-center rounded p-0.5 text-tv-text-muted hover:bg-tv-bg hover:text-tv-red transition-colors"
                     aria-label={`Quitar ${symbolKey} del watchlist`}
                     title="Eliminar de watchlist"
                   >
