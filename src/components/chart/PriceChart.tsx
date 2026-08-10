@@ -197,7 +197,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const stoch50Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const stoch80Ref = useRef<ISeriesApi<"Line"> | null>(null);
   const sqzmomHistRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const sqzmomSqzRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const sqzmomSqzRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const stochPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
   const rsiPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
   const sqzmomPaneTracker = useRef<{ paneIdx: number; scaleId: string } | null>(null);
@@ -908,9 +908,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
       );
 
       const sqzSeries = chartRef.current.addSeries(
-        LineSeries,
+        HistogramSeries,
         {
-          color: "transparent",
           priceLineVisible: false,
           lastValueVisible: false,
           priceScaleId: sqzmomScaleId,
@@ -1581,14 +1580,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
     // Mapear cruces de squeeze en 0
     if (sqzmomSqzRef.current) {
-      const sqzData = points.map((p) => ({
-        time: p.time as UTCTimestamp,
-        value: 0,
-      }));
-      sqzmomSqzRef.current.setData(sqzData);
-
-      // Marcadores (noSqz = azul, sqzOn = negro, sqzOff = gris)
-      const markers = points.map((p) => {
+      const sqzData = points.map((p) => {
         let color = cfg.sqzmomSqzNo;
         if (p.isSqzOn) {
           color = cfg.sqzmomSqzOn;
@@ -1597,13 +1589,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
         }
         return {
           time: p.time as UTCTimestamp,
-          position: "inSeries" as const,
-          shape: "circle" as const,
+          value: 0,
           color,
-          size: 0.5,
         };
       });
-      (sqzmomSqzRef.current as any).setMarkers(markers);
+      sqzmomSqzRef.current.setData(sqzData);
     }
 
     const last = points.at(-1);
@@ -1764,7 +1754,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
       color = last.val < (prev?.val ?? last.val) ? cfg.sqzmomColor2 : cfg.sqzmomColor3;
     }
     sqzmomHistRef.current.update({ time: last.time as UTCTimestamp, value: last.val, color });
-    if (sqzmomSqzRef.current) sqzmomSqzRef.current.update({ time: last.time as UTCTimestamp, value: 0 });
+    if (sqzmomSqzRef.current) {
+      let sqzColor = cfg.sqzmomSqzNo;
+      if (last.isSqzOn) sqzColor = cfg.sqzmomSqzOn;
+      else if (last.isSqzOff) sqzColor = cfg.sqzmomSqzOff;
+      sqzmomSqzRef.current.update({ time: last.time as UTCTimestamp, value: 0, color: sqzColor });
+    }
     return { sqzmom: last.val };
   }
 
