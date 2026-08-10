@@ -47,8 +47,14 @@ export interface ChartProfile {
 
 export interface IndicatorConfig {
   ema20: number;
+  ema20Color?: string;
+  ema20Width?: number;
   ema50: number;
+  ema50Color?: string;
+  ema50Width?: number;
   ema200: number;
+  ema200Color?: string;
+  ema200Width?: number;
   rsi: number;
   rsiMaLength: number;
   rsiMaType: "None" | "SMA" | "EMA";
@@ -107,8 +113,14 @@ export interface IndicatorConfig {
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
   ema20: 20,
+  ema20Color: "#ffb74d",
+  ema20Width: 1.5,
   ema50: 50,
+  ema50Color: "#2962ff",
+  ema50Width: 1.5,
   ema200: 200,
+  ema200Color: "#ab47bc",
+  ema200Width: 1.5,
   rsi: 14,
   rsiMaLength: 14,
   rsiMaType: "SMA",

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   useChartStore,
   DEFAULT_CONFIG,
@@ -16,9 +17,9 @@ import {
 } from "@/lib/store/chart-store";
 
 const TITLES: Record<IndicatorKey, string> = {
-  ema20: "EMA — Slot 1",
-  ema50: "EMA — Slot 2",
-  ema200: "EMA — Slot 3",
+  ema20: "EMA 20",
+  ema50: "EMA 50",
+  ema200: "EMA 200",
   rsi: "RSI",
   volume: "Volumen",
   adx: "DMI / ADX / KEYLEVEL",
@@ -80,8 +81,14 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   // Local draft state to avoid recalculating chart on every keystroke
   const [draft, setDraft] = useState({
     ema20: config.ema20,
+    ema20Color: config.ema20Color ?? "#ffb74d",
+    ema20Width: config.ema20Width ?? 1.5,
     ema50: config.ema50,
+    ema50Color: config.ema50Color ?? "#2962ff",
+    ema50Width: config.ema50Width ?? 1.5,
     ema200: config.ema200,
+    ema200Color: config.ema200Color ?? "#ab47bc",
+    ema200Width: config.ema200Width ?? 1.5,
     rsi: config.rsi,
     rsiMaLength: config.rsiMaLength ?? 14,
     rsiMaType: config.rsiMaType ?? "SMA",
@@ -137,8 +144,14 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   useEffect(() => {
     setDraft({
       ema20: config.ema20,
+      ema20Color: config.ema20Color ?? "#ffb74d",
+      ema20Width: config.ema20Width ?? 1.5,
       ema50: config.ema50,
+      ema50Color: config.ema50Color ?? "#2962ff",
+      ema50Width: config.ema50Width ?? 1.5,
       ema200: config.ema200,
+      ema200Color: config.ema200Color ?? "#ab47bc",
+      ema200Width: config.ema200Width ?? 1.5,
       rsi: config.rsi,
       rsiMaLength: config.rsiMaLength ?? 14,
       rsiMaType: config.rsiMaType ?? "SMA",
@@ -194,9 +207,9 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   }, [config, target]);
 
   function save() {
-    if (target === "ema20") onSave({ ema20: clamp(draft.ema20, 2, 500) });
-    else if (target === "ema50") onSave({ ema50: clamp(draft.ema50, 2, 500) });
-    else if (target === "ema200") onSave({ ema200: clamp(draft.ema200, 2, 500) });
+    if (target === "ema20") onSave({ ema20: clamp(draft.ema20, 2, 500), ema20Color: draft.ema20Color, ema20Width: draft.ema20Width });
+    else if (target === "ema50") onSave({ ema50: clamp(draft.ema50, 2, 500), ema50Color: draft.ema50Color, ema50Width: draft.ema20Width });
+    else if (target === "ema200") onSave({ ema200: clamp(draft.ema200, 2, 500), ema200Color: draft.ema200Color, ema200Width: draft.ema200Width });
     else if (target === "rsi")
       onSave({
         rsi: clamp(draft.rsi, 2, 100),
@@ -268,8 +281,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
 
   return (
     <div className="flex flex-col gap-3 text-tv-text">
-      {/* TradingView-like Tabs for RSI / ADX / MACD / RCI to divide Inputs vs Style */}
-      {(target === "rsi" || target === "adx" || target === "rci" || target === "stoch" || target === "sqzmom") && (
+      {/* TradingView-like Tabs to divide Inputs vs Style */}
+      {(target === "ema20" || target === "ema50" || target === "ema200" || target === "rsi" || target === "adx" || target === "rci" || target === "stoch" || target === "sqzmom") && (
         <div className="flex border-b border-tv-border -mx-6 px-6 mb-2 text-xs">
           <button
             onClick={() => setActiveTab("inputs")}
@@ -491,6 +504,29 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       )}
 
       {/* Style Tab content */}
+      {activeTab === "style" && (target === "ema20" || target === "ema50" || target === "ema200") && (
+        <div className="flex flex-col gap-4 py-2 border-b border-tv-border/20">
+          <ColorPicker
+            value={target === "ema20" ? draft.ema20Color : target === "ema50" ? draft.ema50Color : draft.ema200Color}
+            onChange={(color) => {
+              if (target === "ema20") setDraft((d) => ({ ...d, ema20Color: color }));
+              else if (target === "ema50") setDraft((d) => ({ ...d, ema50Color: color }));
+              else setDraft((d) => ({ ...d, ema200Color: color }));
+            }}
+            label="Color de la línea"
+          />
+          <LineWidthSelector
+            value={target === "ema20" ? draft.ema20Width : target === "ema50" ? draft.ema50Width : draft.ema200Width}
+            onChange={(width) => {
+              if (target === "ema20") setDraft((d) => ({ ...d, ema20Width: width }));
+              else if (target === "ema50") setDraft((d) => ({ ...d, ema50Width: width }));
+              else setDraft((d) => ({ ...d, ema200Width: width }));
+            }}
+            label="Grosor de la línea"
+          />
+        </div>
+      )}
+
       {activeTab === "style" && target === "rsi" && (
         <div className="flex flex-col gap-4 py-2 border-b border-tv-border/20">
           <ColorPicker
@@ -708,7 +744,7 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
           onClick={onReset}
           className="text-tv-text-muted hover:text-tv-text cursor-pointer"
         >
-          Reset defaults
+          Restablecer valores
         </Button>
         <Button size="sm" onClick={save} className="bg-tv-blue hover:bg-tv-blue/90 cursor-pointer text-white">
           Aplicar
@@ -835,5 +871,47 @@ function DecimalField({
         className="bg-tv-bg tabular-nums h-8 text-xs border-tv-border/60"
       />
     </label>
+  );
+}
+
+function LineWidthSelector({
+  value = 1.5,
+  onChange,
+  label,
+}: {
+  value?: number;
+  onChange: (w: number) => void;
+  label: string;
+}) {
+  const widths = [1, 2, 3, 4];
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && (
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-tv-text-muted">
+          {label}
+        </span>
+      )}
+      <div className="flex items-center gap-2">
+        {widths.map((w) => (
+          <button
+            key={w}
+            type="button"
+            onClick={() => onChange(w)}
+            className={cn(
+              "flex h-8 flex-1 items-center justify-center rounded border transition-all cursor-pointer",
+              Math.round(value) === w
+                ? "border-tv-blue bg-tv-blue/20 text-tv-text font-bold"
+                : "border-tv-border/60 bg-tv-bg text-tv-text-muted hover:border-tv-border hover:text-tv-text"
+            )}
+          >
+            <div
+              className="bg-current rounded-full"
+              style={{ height: `${w * 1.5}px`, width: "14px" }}
+            />
+            <span className="ml-1 text-xs">{w}px</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

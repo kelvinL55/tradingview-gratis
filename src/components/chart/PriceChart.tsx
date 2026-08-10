@@ -421,20 +421,20 @@ export function PriceChart({ symbol, timeframe }: Props) {
     });
 
     ema20Ref.current = chart.addSeries(LineSeries, {
-      color: INDICATOR_COLORS.ema20,
-      lineWidth: 1,
+      color: config.ema20Color ?? INDICATOR_COLORS.ema20,
+      lineWidth: (config.ema20Width ?? 1.5) as any,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     ema50Ref.current = chart.addSeries(LineSeries, {
-      color: INDICATOR_COLORS.ema50,
-      lineWidth: 1,
+      color: config.ema50Color ?? INDICATOR_COLORS.ema50,
+      lineWidth: (config.ema50Width ?? 1.5) as any,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     ema200Ref.current = chart.addSeries(LineSeries, {
-      color: INDICATOR_COLORS.ema200,
-      lineWidth: 2,
+      color: config.ema200Color ?? INDICATOR_COLORS.ema200,
+      lineWidth: (config.ema200Width ?? 1.5) as any,
       priceLineVisible: false,
       lastValueVisible: false,
     });
@@ -1130,9 +1130,21 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => {
     const v = (key: IndicatorKey) => indicators[key] && !hidden[key];
     const rsiMaType = config.rsiMaType ?? "SMA";
-    ema20Ref.current?.applyOptions({ visible: v("ema20") });
-    ema50Ref.current?.applyOptions({ visible: v("ema50") });
-    ema200Ref.current?.applyOptions({ visible: v("ema200") });
+    ema20Ref.current?.applyOptions({
+      visible: v("ema20"),
+      color: config.ema20Color ?? INDICATOR_COLORS.ema20,
+      lineWidth: (config.ema20Width ?? 1.5) as any,
+    });
+    ema50Ref.current?.applyOptions({
+      visible: v("ema50"),
+      color: config.ema50Color ?? INDICATOR_COLORS.ema50,
+      lineWidth: (config.ema50Width ?? 1.5) as any,
+    });
+    ema200Ref.current?.applyOptions({
+      visible: v("ema200"),
+      color: config.ema200Color ?? INDICATOR_COLORS.ema200,
+      lineWidth: (config.ema200Width ?? 1.5) as any,
+    });
     if (rsiRef.current) rsiRef.current.applyOptions({ visible: v("rsi") });
     if (rsiBgRef.current) rsiBgRef.current.applyOptions({ visible: v("rsi") && (config.rsiShowBg ?? true) });
     if (rsi30Ref.current) rsi30Ref.current.applyOptions({ visible: v("rsi") });
@@ -1163,6 +1175,12 @@ export function PriceChart({ symbol, timeframe }: Props) {
   }, [
     indicators,
     hidden,
+    config.ema20Color,
+    config.ema20Width,
+    config.ema50Color,
+    config.ema50Width,
+    config.ema200Color,
+    config.ema200Width,
     config.rsiMaType,
     config.rsiShowBg,
     config.adxShowLine,
@@ -2394,7 +2412,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             <IndicatorPill
               name={`EMA ${config.ema20}`}
               value={lastValues.ema20 !== undefined ? formatPrice(lastValues.ema20) : undefined}
-              color={INDICATOR_COLORS.ema20}
+              color={config.ema20Color ?? INDICATOR_COLORS.ema20}
               hidden={hidden.ema20}
               onToggleHide={() => toggleHidden("ema20")}
               onSettings={() => setSettingsTarget("ema20")}
@@ -2406,7 +2424,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             <IndicatorPill
               name={`EMA ${config.ema50}`}
               value={lastValues.ema50 !== undefined ? formatPrice(lastValues.ema50) : undefined}
-              color={INDICATOR_COLORS.ema50}
+              color={config.ema50Color ?? INDICATOR_COLORS.ema50}
               hidden={hidden.ema50}
               onToggleHide={() => toggleHidden("ema50")}
               onSettings={() => setSettingsTarget("ema50")}
@@ -2418,7 +2436,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             <IndicatorPill
               name={`EMA ${config.ema200}`}
               value={lastValues.ema200 !== undefined ? formatPrice(lastValues.ema200) : undefined}
-              color={INDICATOR_COLORS.ema200}
+              color={config.ema200Color ?? INDICATOR_COLORS.ema200}
               hidden={hidden.ema200}
               onToggleHide={() => toggleHidden("ema200")}
               onSettings={() => setSettingsTarget("ema200")}
