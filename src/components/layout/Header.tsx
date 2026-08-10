@@ -10,7 +10,14 @@ import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/ui/Logo";
 import { useChartStore } from "@/lib/store/chart-store";
 
-export function Header() {
+import { MobileHeader } from "@/components/layout/MobileHeader";
+
+interface HeaderProps {
+  onToggleDrawingTools?: () => void;
+  drawingToolsOpen?: boolean;
+}
+
+export function Header({ onToggleDrawingTools, drawingToolsOpen }: HeaderProps = {}) {
   const triggerResetChart = useChartStore((s) => s.triggerResetChart);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
@@ -44,7 +51,9 @@ export function Header() {
   }, []);
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-tv-border bg-tv-panel px-3">
+    <>
+      <MobileHeader onToggleDrawingTools={onToggleDrawingTools} drawingToolsOpen={drawingToolsOpen} />
+      <header className="hidden md:flex h-12 items-center justify-between border-b border-tv-border bg-tv-panel px-3">
       <div className="flex items-center gap-1">
         <div className="flex items-center gap-2 pr-2 select-none">
           <Logo className="h-7 w-7" />
@@ -90,6 +99,7 @@ export function Header() {
         )}
       </div>
     </header>
+    </>
   );
 }
 

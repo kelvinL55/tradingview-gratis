@@ -46,18 +46,18 @@ export function BottomPanel() {
   const upClass = (n: number) => (n >= 0 ? "text-tv-green" : "text-tv-red");
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-0 border-t border-tv-border bg-tv-panel px-3 text-xs z-20">
-      <div className="flex items-center gap-1.5 border-r border-tv-border/80 px-3">
+    <div className="flex h-9 shrink-0 items-center border-t border-tv-border bg-tv-panel px-2.5 text-xs z-20 overflow-x-auto whitespace-nowrap scrollbar-none">
+      <div className="flex items-center gap-1.5 border-r border-tv-border/80 pr-2.5 shrink-0">
         <span className="text-tv-text-dim text-[11px] uppercase tracking-wider font-semibold">Símbolo</span>
         <span className="font-bold text-tv-text text-xs tracking-tight">{parsed.symbol}</span>
         <ExchangeBadge exchange={parsed.exchange} className="scale-90" />
       </div>
-      <Stat
-        label="24h Cambio"
-        value={t ? formatPct(t.priceChangePercent) : "—"}
-        valueClass={t ? upClass(t.priceChangePercent) : ""}
-      />
-      <div className="hidden md:flex items-center gap-0">
+      <div className="flex items-center shrink-0">
+        <Stat
+          label="24h Cambio"
+          value={t ? formatPct(t.priceChangePercent) : "—"}
+          valueClass={t ? upClass(t.priceChangePercent) : ""}
+        />
         <Stat
           label="24h Alto"
           value={t ? formatPrice(t.highPrice) : "—"}
@@ -77,8 +77,8 @@ export function BottomPanel() {
           value={t ? formatVolume(t.quoteVolume) : "—"}
         />
       </div>
-      <div className="ml-auto flex items-center gap-3 text-[11px] text-tv-text-muted font-medium">
-        <div className="flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-2 text-[11px] text-tv-text-muted font-medium shrink-0 pl-2">
+        <div className="flex items-center gap-1">
           <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-tv-green shadow-[0_0_8px_rgba(8,153,129,0.6)]" />
           <span className="font-semibold text-tv-text">{parsed.exchange}</span>
           <span className="text-tv-text-dim">· Live</span>
